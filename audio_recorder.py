@@ -34,7 +34,8 @@ class AudioRecorder:
     MODE_MICROPHONE = "microphone"
     MODE_BOTH = "both"
     
-    def __init__(self, mode=MODE_NONE, sample_rate=44100, channels=2):
+    def __init__(self, mode=MODE_NONE, sample_rate=44100, channels=2,
+                 system_volume=1.0, mic_volume=1.0):
         """
         初始化音频录制器
         
@@ -42,11 +43,17 @@ class AudioRecorder:
             mode: 录制模式 (none/system/microphone/both)
             sample_rate: 采样率，默认44100Hz
             channels: 声道数，默认2（立体声）
+            system_volume: 系统音量增益，默认1.0（范围0.0-3.0）
+            mic_volume: 麦克风音量增益，默认1.0（范围0.0-3.0）
         """
         self.mode = mode
         self.sample_rate = sample_rate
         self.channels = channels
         self.is_recording = False
+        
+        # 音量增益参数
+        self.system_volume = max(0.0, min(3.0, system_volume))
+        self.mic_volume = max(0.0, min(3.0, mic_volume))
         
         # 音频数据缓冲区
         self.system_audio_data = []
@@ -59,7 +66,16 @@ class AudioRecorder:
         
         # 输出文件路径
         self.output_file = ""
+        self.start_time = None
         
+        # 实际系统音频采样率
+        self.system_sample_rate = None
+        
+    def set_start_time(self):
+        """设置录制开始时间，用于音画同步"""
+        self.start_time = time.time()
+        print(f"音频录制同步时间已设置: {self.start_time}")
+
     def start_recording(self, output_file):
         """
         启动音频录制
@@ -72,6 +88,7 @@ class AudioRecorder:
             
         self.output_file = output_file
         self.is_recording = True
+        self.start_time = None
         
         try:
             if self.mode == self.MODE_SYSTEM:
@@ -175,13 +192,48 @@ class AudioRecorder:
                 frames_per_buffer=1024
             )
             
+            self.system_sample_rate = rate
             print(f"系统音频录制已启动 (采样率: {rate}Hz, 声道: {channels})")
+            
+            # 计算每字节的时间（用于补齐静音）
+            bytes_per_frame = channels * 2  # 16-bit = 2 bytes
+            total_bytes_read = 0
+            
+            # 等待开始时间设置
+            while self.is_recording and self.start_time is None:
+                try:
+                    # 读取并丢弃数据，保持流的活性
+                    stream.read(1024, exception_on_overflow=False)
+                except:
+                    pass
+                time.sleep(0.001)
             
             while self.is_recording:
                 try:
                     data = stream.read(1024, exception_on_overflow=False)
+                    
+                    if self.start_time is None:
+                        continue
+
+                    # 计算理论上应该有的数据量
+                    elapsed_time = time.time() - self.start_time
+                    expected_bytes = int(elapsed_time * rate * bytes_per_frame)
+                    # 确保是帧大小的整数倍，防止 buffer size 错误
+                    expected_bytes -= expected_bytes % bytes_per_frame
+                    
                     with self.data_lock:
+                        # 如果实际读取的数据远少于理论数据，说明中间有静音（WASAPI loopback特性）
+                        # 允许一定的误差（例如 0.1秒）
+                        if expected_bytes > total_bytes_read + len(data) + (rate * bytes_per_frame * 0.1):
+                            missing_bytes = expected_bytes - (total_bytes_read + len(data))
+                            # 补齐静音
+                            silence = b'\x00' * missing_bytes
+                            self.system_audio_data.append(silence)
+                            total_bytes_read += missing_bytes
+                            
                         self.system_audio_data.append(data)
+                        total_bytes_read += len(data)
+                        
                 except Exception as e:
                     print(f"读取系统音频数据错误: {e}")
                     break
@@ -215,6 +267,9 @@ class AudioRecorder:
                 print(f"警告：无法获取设备信息: {e}")
             
             def callback(indata, frames, time_info, status):
+                if self.start_time is None:
+                    return
+                    
                 if status:
                     print(f"麦克风录制状态: {status}")
                 with self.data_lock:
@@ -278,7 +333,50 @@ class AudioRecorder:
         with self.data_lock:
             if not self.system_audio_data:
                 return None
-            return b''.join(self.system_audio_data)
+            
+            # 应用音量增益
+            if self.system_volume != 1.0:
+                audio_bytes = b''.join(self.system_audio_data)
+                audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+                # 应用增益并限制在int16范围内
+                audio_array = audio_array.astype(np.float32) * self.system_volume
+                audio_array = np.clip(audio_array, -32768, 32767).astype(np.int16)
+                return audio_array.tobytes()
+            else:
+                audio_bytes = b''.join(self.system_audio_data)
+                
+            # 重采样处理
+            if self.system_sample_rate and self.system_sample_rate != self.sample_rate:
+                audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+                audio_array = self._resample_audio(audio_array, self.system_sample_rate, self.sample_rate)
+                return audio_array.tobytes()
+                
+            return audio_bytes
+    
+    def _resample_audio(self, audio_data, original_rate, target_rate):
+        """
+        重采样音频数据
+        
+        Args:
+            audio_data: int16 numpy array
+            original_rate: 原始采样率
+            target_rate: 目标采样率
+            
+        Returns:
+            int16 numpy array
+        """
+        if original_rate == target_rate or len(audio_data) == 0:
+            return audio_data
+            
+        duration = len(audio_data) / original_rate
+        target_length = int(duration * target_rate)
+        
+        # 使用线性插值进行重采样
+        x_old = np.linspace(0, duration, len(audio_data))
+        x_new = np.linspace(0, duration, target_length)
+        
+        resampled_data = np.interp(x_new, x_old, audio_data.astype(np.float32))
+        return resampled_data.astype(np.int16)
     
     def _process_microphone_audio(self):
         """处理麦克风音频数据"""
@@ -288,6 +386,11 @@ class AudioRecorder:
             
             # 将 numpy 数组转换为字节
             audio_array = np.concatenate(self.mic_audio_data, axis=0)
+            
+            # 应用音量增益
+            if self.mic_volume != 1.0:
+                audio_array = audio_array.astype(np.float32) * self.mic_volume
+                audio_array = np.clip(audio_array, -32768, 32767).astype(np.int16)
             
             # 如果需要立体声，复制单声道到两个声道
             if self.channels == 2:
@@ -304,32 +407,53 @@ class AudioRecorder:
             # 处理系统音频
             if self.system_audio_data:
                 system_bytes = b''.join(self.system_audio_data)
-                system_array = np.frombuffer(system_bytes, dtype=np.int16)
+                system_array = np.frombuffer(system_bytes, dtype=np.int16).astype(np.float32)
+                
+                # 重采样系统音频以匹配目标采样率
+                if self.system_sample_rate and self.system_sample_rate != self.sample_rate:
+                    # 注意：此时 system_array 已经是 float32
+                    duration = len(system_array) / self.system_sample_rate
+                    target_length = int(duration * self.sample_rate)
+                    x_old = np.linspace(0, duration, len(system_array))
+                    x_new = np.linspace(0, duration, target_length)
+                    system_array = np.interp(x_new, x_old, system_array)
+                
+                # 应用系统音量增益
+                system_array = system_array * self.system_volume
             else:
-                system_array = np.array([], dtype=np.int16)
+                system_array = np.array([], dtype=np.float32)
             
             # 处理麦克风音频
             if self.mic_audio_data:
-                mic_array = np.concatenate(self.mic_audio_data, axis=0).flatten()
+                mic_array = np.concatenate(self.mic_audio_data, axis=0).flatten().astype(np.float32)
+                # 应用麦克风音量增益
+                mic_array = mic_array * self.mic_volume
                 # 将单声道扩展为立体声
                 mic_array = np.repeat(mic_array, 2)
             else:
-                mic_array = np.array([], dtype=np.int16)
+                mic_array = np.array([], dtype=np.float32)
             
-            # 对齐长度
-            min_len = min(len(system_array), len(mic_array))
-            if min_len == 0:
-                # 如果一个为空，使用另一个
-                mixed_array = system_array if len(system_array) > 0 else mic_array
-            else:
-                # 混合两个音频流（简单相加并归一化）
-                system_array = system_array[:min_len]
-                mic_array = mic_array[:min_len]
+            # 对齐长度，取最大长度，短的补静音
+            max_len = max(len(system_array), len(mic_array))
+            
+            if max_len == 0:
+                return None
                 
-                # 转换为 float 进行混合，避免溢出
-                mixed = (system_array.astype(np.float32) + mic_array.astype(np.float32)) / 2
-                mixed_array = mixed.astype(np.int16)
+            # 补齐系统音频
+            if len(system_array) < max_len:
+                padding = np.zeros(max_len - len(system_array), dtype=np.float32)
+                system_array = np.concatenate((system_array, padding))
+                
+            # 补齐麦克风音频
+            if len(mic_array) < max_len:
+                padding = np.zeros(max_len - len(mic_array), dtype=np.float32)
+                mic_array = np.concatenate((mic_array, padding))
             
+            # 混合音频（平均混合）
+            mixed_array = (system_array + mic_array) / 2
+            
+            # 限制在int16范围内并转换
+            mixed_array = np.clip(mixed_array, -32768, 32767).astype(np.int16)
             return mixed_array.tobytes()
     
     @staticmethod

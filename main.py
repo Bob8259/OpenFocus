@@ -39,6 +39,8 @@ class RecordEngine:
         self.audio_mode = AudioRecorder.MODE_NONE  # 音频模式
         self.audio_recorder = None
         self.audio_file = ""
+        self.system_volume = 1.0  # 系统音量增益
+        self.mic_volume = 2.0  # 麦克风音量增益（默认2.0以增强麦克风）
         
         # 录制区域参数
         self.record_region = None  # None 表示全屏，否则为 {'left': x, 'top': y, 'width': w, 'height': h}
@@ -109,7 +111,12 @@ class RecordEngine:
         
         # 启动音频录制
         if self.audio_mode != AudioRecorder.MODE_NONE:
-            self.audio_recorder = AudioRecorder(mode=self.audio_mode)
+            self.audio_recorder = AudioRecorder(
+                mode=self.audio_mode,
+                sample_rate=48000,
+                system_volume=self.system_volume,
+                mic_volume=self.mic_volume
+            )
             audio_started = self.audio_recorder.start_recording(self.audio_file)
             if not audio_started:
                 print("音频录制启动失败，将以无音频模式继续")
@@ -138,6 +145,10 @@ class RecordEngine:
             
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(video_temp, fourcc, self.fps, (w, h))
+
+            # 设置音频录制开始时间（与视频录制同步）
+            if self.audio_mode != AudioRecorder.MODE_NONE and self.audio_recorder:
+                self.audio_recorder.set_start_time()
 
             while self.is_running:
                 loop_start = time.time()
@@ -196,7 +207,7 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("AI Smooth Focus Recorder")
-        self.geometry("420x650")  # 增加高度以容纳区域选择按钮
+        self.geometry("420x780")  # 增加高度以容纳音量控制
         self.engine = RecordEngine()
         
         # 音频模式映射
@@ -277,7 +288,39 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=13)
         )
         self.audio_mode_menu.set("不录音频")
-        self.audio_mode_menu.grid(row=7, column=0, padx=20, pady=(0, 15))
+        self.audio_mode_menu.grid(row=7, column=0, padx=20, pady=(0, 10))
+        
+        # 系统音量控制
+        self.system_volume_label = ctk.CTkLabel(
+            self.settings_frame,
+            text=f"系统音量: {self.engine.system_volume}x",
+            font=ctk.CTkFont(size=12)
+        )
+        self.system_volume_label.grid(row=8, column=0, pady=(10, 0))
+        self.system_volume_slider = ctk.CTkSlider(
+            self.settings_frame,
+            from_=0.0,
+            to=3.0,
+            command=self.change_system_volume
+        )
+        self.system_volume_slider.set(self.engine.system_volume)
+        self.system_volume_slider.grid(row=9, column=0, padx=20, pady=(5, 10))
+        
+        # 麦克风音量控制
+        self.mic_volume_label = ctk.CTkLabel(
+            self.settings_frame,
+            text=f"麦克风音量: {self.engine.mic_volume}x",
+            font=ctk.CTkFont(size=12)
+        )
+        self.mic_volume_label.grid(row=10, column=0, pady=(5, 0))
+        self.mic_volume_slider = ctk.CTkSlider(
+            self.settings_frame,
+            from_=0.0,
+            to=3.0,
+            command=self.change_mic_volume
+        )
+        self.mic_volume_slider.set(self.engine.mic_volume)
+        self.mic_volume_slider.grid(row=11, column=0, padx=20, pady=(5, 15))
 
         # 状态指示
         self.status_label = ctk.CTkLabel(self, text="Ready to Record", text_color="#7f8c8d")
@@ -305,6 +348,16 @@ class App(ctk.CTk):
         """更改音频录制模式"""
         self.engine.audio_mode = self.audio_mode_map[choice]
         print(f"音频模式已设置为: {choice} ({self.engine.audio_mode})")
+    
+    def change_system_volume(self, value):
+        """更改系统音量增益"""
+        self.engine.system_volume = round(value, 2)
+        self.system_volume_label.configure(text=f"系统音量: {self.engine.system_volume}x")
+    
+    def change_mic_volume(self, value):
+        """更改麦克风音量增益"""
+        self.engine.mic_volume = round(value, 2)
+        self.mic_volume_label.configure(text=f"麦克风音量: {self.engine.mic_volume}x")
     
     def select_region(self):
         """选择录制区域"""
