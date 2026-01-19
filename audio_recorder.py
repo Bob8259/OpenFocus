@@ -1,0 +1,467 @@
+"""
+音频录制模块
+支持四种录制模式：不录音频、仅系统声音、仅麦克风、麦克风和系统
+"""
+import numpy as np
+import wave
+import time
+from threading import Thread, Lock
+import os
+
+try:
+    import pyaudiowpatch as pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    try:
+        import pyaudio
+        PYAUDIO_AVAILABLE = True
+    except ImportError:
+        PYAUDIO_AVAILABLE = False
+
+try:
+    import sounddevice as sd
+    SOUNDDEVICE_AVAILABLE = True
+except ImportError:
+    SOUNDDEVICE_AVAILABLE = False
+
+
+class AudioRecorder:
+    """音频录制管理类"""
+    
+    # 音频模式常量
+    MODE_NONE = "none"
+    MODE_SYSTEM = "system"
+    MODE_MICROPHONE = "microphone"
+    MODE_BOTH = "both"
+    
+    def __init__(self, mode=MODE_NONE, sample_rate=44100, channels=2):
+        """
+        初始化音频录制器
+        
+        Args:
+            mode: 录制模式 (none/system/microphone/both)
+            sample_rate: 采样率，默认44100Hz
+            channels: 声道数，默认2（立体声）
+        """
+        self.mode = mode
+        self.sample_rate = sample_rate
+        self.channels = channels
+        self.is_recording = False
+        
+        # 音频数据缓冲区
+        self.system_audio_data = []
+        self.mic_audio_data = []
+        self.data_lock = Lock()
+        
+        # 录制线程
+        self.system_thread = None
+        self.mic_thread = None
+        
+        # 输出文件路径
+        self.output_file = ""
+        
+    def start_recording(self, output_file):
+        """
+        启动音频录制
+        
+        Args:
+            output_file: 输出音频文件路径
+        """
+        if self.mode == self.MODE_NONE:
+            return True
+            
+        self.output_file = output_file
+        self.is_recording = True
+        
+        try:
+            if self.mode == self.MODE_SYSTEM:
+                return self._start_system_recording()
+            elif self.mode == self.MODE_MICROPHONE:
+                return self._start_microphone_recording()
+            elif self.mode == self.MODE_BOTH:
+                return self._start_mixed_recording()
+        except Exception as e:
+            print(f"启动音频录制失败: {e}")
+            self.is_recording = False
+            return False
+            
+        return True
+    
+    def stop_recording(self):
+        """停止音频录制并保存文件"""
+        if self.mode == self.MODE_NONE or not self.is_recording:
+            return True
+            
+        self.is_recording = False
+        
+        # 等待录制线程结束
+        if self.system_thread and self.system_thread.is_alive():
+            self.system_thread.join(timeout=2.0)
+        if self.mic_thread and self.mic_thread.is_alive():
+            self.mic_thread.join(timeout=2.0)
+        
+        # 保存音频数据
+        try:
+            return self._save_audio_file()
+        except Exception as e:
+            print(f"保存音频文件失败: {e}")
+            return False
+    
+    def _start_system_recording(self):
+        """启动系统音频录制（WASAPI loopback）"""
+        if not PYAUDIO_AVAILABLE:
+            print("PyAudio 未安装，无法录制系统音频")
+            return False
+            
+        self.system_thread = Thread(target=self._record_system_audio, daemon=True)
+        self.system_thread.start()
+        return True
+    
+    def _start_microphone_recording(self):
+        """启动麦克风录制"""
+        if not SOUNDDEVICE_AVAILABLE:
+            print("sounddevice 未安装，无法录制麦克风")
+            return False
+        
+        # 验证是否有可用设备
+        devices = AudioRecorder.get_input_devices()
+        if not devices:
+            print("错误：未找到可用的音频输入设备")
+            print("运行诊断以获取更多信息...")
+            AudioRecorder.diagnose_audio_devices()
+            return False
+            
+        self.mic_thread = Thread(target=self._record_microphone, daemon=True)
+        self.mic_thread.start()
+        return True
+    
+    def _start_mixed_recording(self):
+        """启动混合录制（系统+麦克风）"""
+        if not PYAUDIO_AVAILABLE or not SOUNDDEVICE_AVAILABLE:
+            print("缺少必要的音频库，无法录制混合音频")
+            return False
+            
+        self.system_thread = Thread(target=self._record_system_audio, daemon=True)
+        self.mic_thread = Thread(target=self._record_microphone, daemon=True)
+        
+        self.system_thread.start()
+        self.mic_thread.start()
+        return True
+    
+    def _record_system_audio(self):
+        """录制系统音频（使用 WASAPI loopback）"""
+        try:
+            p = pyaudio.PyAudio()
+            
+            # 尝试获取 WASAPI loopback 设备
+            try:
+                wasapi_info = p.get_default_wasapi_loopback()
+                device_index = wasapi_info["index"]
+                channels = wasapi_info["maxInputChannels"]
+                rate = int(wasapi_info["defaultSampleRate"])
+            except AttributeError:
+                # 如果不支持 WASAPI，使用默认输入设备
+                device_info = p.get_default_input_device_info()
+                device_index = device_info["index"]
+                channels = min(2, device_info["maxInputChannels"])
+                rate = int(device_info["defaultSampleRate"])
+            
+            stream = p.open(
+                format=pyaudio.paInt16,
+                channels=channels,
+                rate=rate,
+                input=True,
+                input_device_index=device_index,
+                frames_per_buffer=1024
+            )
+            
+            print(f"系统音频录制已启动 (采样率: {rate}Hz, 声道: {channels})")
+            
+            while self.is_recording:
+                try:
+                    data = stream.read(1024, exception_on_overflow=False)
+                    with self.data_lock:
+                        self.system_audio_data.append(data)
+                except Exception as e:
+                    print(f"读取系统音频数据错误: {e}")
+                    break
+            
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+            print("系统音频录制已停止")
+            
+        except Exception as e:
+            print(f"系统音频录制错误: {e}")
+            self.is_recording = False
+    
+    def _record_microphone(self):
+        """录制麦克风音频"""
+        try:
+            # 选择输入设备
+            device_index = AudioRecorder.select_best_input_device()
+            
+            if device_index is None:
+                print("错误：未找到可用的音频输入设备")
+                print("提示：请检查麦克风是否正确连接并授予应用程序麦克风权限")
+                self.is_recording = False
+                return
+            
+            # 获取设备信息
+            try:
+                device_info = sd.query_devices(device_index)
+                print(f"使用音频设备: {device_info['name']} (索引: {device_index})")
+            except Exception as e:
+                print(f"警告：无法获取设备信息: {e}")
+            
+            def callback(indata, frames, time_info, status):
+                if status:
+                    print(f"麦克风录制状态: {status}")
+                with self.data_lock:
+                    self.mic_audio_data.append(indata.copy())
+            
+            # 显式指定设备
+            with sd.InputStream(
+                device=device_index,  # 添加设备参数
+                samplerate=self.sample_rate,
+                channels=1,  # 麦克风通常使用单声道
+                callback=callback,
+                dtype='int16'
+            ):
+                print(f"麦克风录制已启动 (采样率: {self.sample_rate}Hz)")
+                while self.is_recording:
+                    sd.sleep(100)
+            
+            print("麦克风录制已停止")
+            
+        except Exception as e:
+            print(f"麦克风录制错误: {e}")
+            print("提示：请检查麦克风是否正确连接并授予应用程序麦克风权限")
+            self.is_recording = False
+    
+    def _save_audio_file(self):
+        """保存音频数据到 WAV 文件"""
+        if not self.output_file:
+            return False
+        
+        try:
+            # 根据模式处理音频数据
+            if self.mode == self.MODE_SYSTEM:
+                audio_data = self._process_system_audio()
+            elif self.mode == self.MODE_MICROPHONE:
+                audio_data = self._process_microphone_audio()
+            elif self.mode == self.MODE_BOTH:
+                audio_data = self._process_mixed_audio()
+            else:
+                return False
+            
+            if audio_data is None or len(audio_data) == 0:
+                print("没有音频数据可保存")
+                return False
+            
+            # 保存为 WAV 文件
+            with wave.open(self.output_file, 'wb') as wf:
+                wf.setnchannels(self.channels)
+                wf.setsampwidth(2)  # 16-bit
+                wf.setframerate(self.sample_rate)
+                wf.writeframes(audio_data)
+            
+            print(f"音频文件已保存: {self.output_file}")
+            return True
+            
+        except Exception as e:
+            print(f"保存音频文件错误: {e}")
+            return False
+    
+    def _process_system_audio(self):
+        """处理系统音频数据"""
+        with self.data_lock:
+            if not self.system_audio_data:
+                return None
+            return b''.join(self.system_audio_data)
+    
+    def _process_microphone_audio(self):
+        """处理麦克风音频数据"""
+        with self.data_lock:
+            if not self.mic_audio_data:
+                return None
+            
+            # 将 numpy 数组转换为字节
+            audio_array = np.concatenate(self.mic_audio_data, axis=0)
+            
+            # 如果需要立体声，复制单声道到两个声道
+            if self.channels == 2:
+                audio_array = np.column_stack((audio_array, audio_array))
+            
+            return audio_array.tobytes()
+    
+    def _process_mixed_audio(self):
+        """处理混合音频数据（系统+麦克风）"""
+        with self.data_lock:
+            if not self.system_audio_data and not self.mic_audio_data:
+                return None
+            
+            # 处理系统音频
+            if self.system_audio_data:
+                system_bytes = b''.join(self.system_audio_data)
+                system_array = np.frombuffer(system_bytes, dtype=np.int16)
+            else:
+                system_array = np.array([], dtype=np.int16)
+            
+            # 处理麦克风音频
+            if self.mic_audio_data:
+                mic_array = np.concatenate(self.mic_audio_data, axis=0).flatten()
+                # 将单声道扩展为立体声
+                mic_array = np.repeat(mic_array, 2)
+            else:
+                mic_array = np.array([], dtype=np.int16)
+            
+            # 对齐长度
+            min_len = min(len(system_array), len(mic_array))
+            if min_len == 0:
+                # 如果一个为空，使用另一个
+                mixed_array = system_array if len(system_array) > 0 else mic_array
+            else:
+                # 混合两个音频流（简单相加并归一化）
+                system_array = system_array[:min_len]
+                mic_array = mic_array[:min_len]
+                
+                # 转换为 float 进行混合，避免溢出
+                mixed = (system_array.astype(np.float32) + mic_array.astype(np.float32)) / 2
+                mixed_array = mixed.astype(np.int16)
+            
+            return mixed_array.tobytes()
+    
+    @staticmethod
+    def get_input_devices():
+        """获取所有可用的输入设备"""
+        if not SOUNDDEVICE_AVAILABLE:
+            return []
+        
+        devices = []
+        try:
+            device_list = sd.query_devices()
+            for idx, device in enumerate(device_list):
+                if device['max_input_channels'] > 0:
+                    devices.append({
+                        'index': idx,
+                        'name': device['name'],
+                        'channels': device['max_input_channels'],
+                        'sample_rate': device['default_samplerate']
+                    })
+        except Exception as e:
+            print(f"查询音频设备失败: {e}")
+        
+        return devices
+    
+    @staticmethod
+    def select_best_input_device():
+        """选择最佳的输入设备"""
+        if not SOUNDDEVICE_AVAILABLE:
+            return None
+        
+        devices = AudioRecorder.get_input_devices()
+        
+        if not devices:
+            return None
+        
+        # 优先级策略：
+        # 1. 查找名称包含 "麦克风" 或 "Microphone" 的设备
+        # 2. 使用系统默认输入设备
+        # 3. 使用第一个可用的输入设备
+        
+        for device in devices:
+            name_lower = device['name'].lower()
+            if 'microphone' in name_lower or '麦克风' in name_lower or 'mic' in name_lower:
+                print(f"找到麦克风设备: {device['name']}")
+                return device['index']
+        
+        # 尝试获取默认设备
+        try:
+            default_device = sd.query_devices(kind='input')
+            if default_device['max_input_channels'] > 0:
+                print(f"使用默认输入设备: {default_device['name']}")
+                return default_device['index']
+        except Exception as e:
+            print(f"无法获取默认输入设备: {e}")
+        
+        # 返回第一个可用设备
+        if devices:
+            print(f"使用第一个可用设备: {devices[0]['name']}")
+            return devices[0]['index']
+        
+        return None
+    
+    @staticmethod
+    def diagnose_audio_devices():
+        """诊断音频设备配置"""
+        print("\n=== 音频设备诊断 ===")
+        
+        if not SOUNDDEVICE_AVAILABLE:
+            print("❌ sounddevice 库未安装")
+            print("   请运行: pip install sounddevice")
+            return
+        
+        print("✓ sounddevice 库已安装")
+        
+        try:
+            devices = sd.query_devices()
+            print(f"\n检测到 {len(devices)} 个音频设备：")
+            
+            input_count = 0
+            for idx, device in enumerate(devices):
+                if device['max_input_channels'] > 0:
+                    input_count += 1
+                    print(f"  [{idx}] {device['name']}")
+                    print(f"      输入通道: {device['max_input_channels']}")
+                    print(f"      采样率: {device['default_samplerate']} Hz")
+            
+            if input_count == 0:
+                print("\n❌ 未找到可用的输入设备")
+                print("   请检查：")
+                print("   1. 麦克风是否正确连接")
+                print("   2. 系统音频设置中是否启用了输入设备")
+                print("   3. 应用程序是否有麦克风访问权限")
+                print("      Windows: 设置 → 隐私 → 麦克风")
+            else:
+                print(f"\n✓ 找到 {input_count} 个输入设备")
+                
+            # 检查默认设备
+            try:
+                default_input = sd.query_devices(kind='input')
+                print(f"\n默认输入设备: {default_input['name']} (索引: {default_input['index']})")
+            except Exception as e:
+                print(f"\n⚠ 无法获取默认输入设备: {e}")
+                
+        except Exception as e:
+            print(f"\n❌ 设备查询失败: {e}")
+        
+        print("===================\n")
+    
+    @staticmethod
+    def check_audio_support():
+        """检查音频库支持情况"""
+        support_info = {
+            'pyaudio': PYAUDIO_AVAILABLE,
+            'sounddevice': SOUNDDEVICE_AVAILABLE,
+            'system_audio': PYAUDIO_AVAILABLE,
+            'microphone': SOUNDDEVICE_AVAILABLE,
+            'mixed': PYAUDIO_AVAILABLE and SOUNDDEVICE_AVAILABLE
+        }
+        return support_info
+    
+    @staticmethod
+    def get_available_modes():
+        """获取可用的录制模式"""
+        modes = [AudioRecorder.MODE_NONE]
+        
+        if PYAUDIO_AVAILABLE:
+            modes.append(AudioRecorder.MODE_SYSTEM)
+        
+        if SOUNDDEVICE_AVAILABLE:
+            modes.append(AudioRecorder.MODE_MICROPHONE)
+        
+        if PYAUDIO_AVAILABLE and SOUNDDEVICE_AVAILABLE:
+            modes.append(AudioRecorder.MODE_BOTH)
+        
+        return modes

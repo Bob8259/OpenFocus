@@ -1,0 +1,4 @@
+打包
+
+pip install pyinstaller
+pyinstaller -F -w main.py
