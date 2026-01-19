@@ -3,3 +3,5 @@ __pycache__
 plans
 *mp4
 draft.txt
+dist
+build

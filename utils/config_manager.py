@@ -4,6 +4,10 @@ import os
 class ConfigManager:
     _instance = None
     CONFIG_FILE = "config.json"
+    
+    def _get_config_path(self):
+        from utils.path_utils import get_config_path
+        return get_config_path(self.CONFIG_FILE)
 
     DEFAULT_CONFIG = {
         "zoom_max": 1.3,
@@ -24,9 +28,10 @@ class ConfigManager:
         return cls._instance
 
     def _load_config(self):
-        if os.path.exists(self.CONFIG_FILE):
+        config_path = self._get_config_path()
+        if os.path.exists(config_path):
             try:
-                with open(self.CONFIG_FILE, 'r', encoding='utf-8') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     # Merge with defaults
                     for key, value in data.items():
@@ -36,7 +41,8 @@ class ConfigManager:
 
     def save_config(self):
         try:
-            with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            config_path = self._get_config_path()
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4, ensure_ascii=False)
         except Exception as e:
             print(f"Error saving config: {e}")

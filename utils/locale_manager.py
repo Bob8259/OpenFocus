@@ -11,7 +11,8 @@ class LocaleManager:
             cls._instance.current_locale = "zh_CN"
             cls._instance.translations = {}
             cls._instance.loaded_locales = {}
-            cls._instance.base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cls._instance.loaded_locales = {}
+            # cls._instance.base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             cls._instance.load_locale(cls._instance.current_locale)
         return cls._instance
 
@@ -29,7 +30,8 @@ class LocaleManager:
             self.translations = self.loaded_locales[lang_code]
             return
 
-        locale_path = os.path.join(self.base_path, "locales", f"{lang_code}.json")
+        from utils.path_utils import get_resource_path
+        locale_path = get_resource_path(os.path.join("locales", f"{lang_code}.json"))
         try:
             with open(locale_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
