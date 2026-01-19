@@ -28,7 +28,7 @@
     "log_merging": "正在合并音视频文件...",
     "log_merge_fail": "音视频合并失败",
     "log_audio_mode_set": "音频模式已设置为: {} ({})",
-    "region_select_hint": "拖拽鼠标选择录屏区域 | 按 ESC 取消",
+    "region_select_hint": "拖拽鼠标选择录屏区域 | 点击屏幕后按 ESC 取消",
     "region_size_text": "{} x {}",
     "region_too_small": "选择区域太小！请选择至少 50x50 像素的区域",
     "log_audio_sync_time": "音频录制同步时间已设置: {}",

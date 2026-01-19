@@ -5,13 +5,14 @@ import numpy as np
 import time
 from threading import Thread
 from mss import mss
-from pynput import mouse
+from pynput import mouse, keyboard
 import pyautogui
 import customtkinter as ctk
 from audio_recorder import AudioRecorder
 from video_audio_merger import VideoAudioMerger
 from region_selector import RegionSelector
 from utils.locale_manager import locale_manager
+from utils.config_manager import config_manager
 
 # 解决 Windows DPI 缩放导致的界面模糊和报错
 try:
@@ -28,6 +29,8 @@ class RecordEngine:
     """负责所有后端录屏与图像处理逻辑"""
     def __init__(self):
         self.is_running = False
+        self.is_paused = False
+
         
         # 默认参数（可被 UI 实时修改）
         self.zoom_max = 1.3
@@ -99,6 +102,7 @@ class RecordEngine:
 
     def run(self):
         self.is_running = True
+        self.is_paused = False
         timestamp = int(time.time())
         
         # 根据音频模式决定文件名
@@ -152,6 +156,10 @@ class RecordEngine:
                 self.audio_recorder.set_start_time()
 
             while self.is_running:
+                if self.is_paused:
+                    time.sleep(0.1)
+                    continue
+
                 loop_start = time.time()
                 
                 # 抓取屏幕
@@ -208,9 +216,30 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        # Apply language from config
+        lang = config_manager.get("language", "zh_CN")
+        locale_manager.set_language(lang)
+
+        # --- 全局快捷键 ---
+        self.hotkey_listener = keyboard.GlobalHotKeys({
+            '<ctrl>+<f1>': self.on_f1_shortcut,
+            '<ctrl>+<f2>': self.on_f2_shortcut
+        })
+        self.hotkey_listener.start()
+
+
         self.title(locale_manager.get_text("window_title"))
-        self.geometry("700x560")  # Wider window, shorter height
+        self.geometry("700x750")
         self.engine = RecordEngine()
+        
+        # Apply config to engine
+        self.engine.zoom_max = config_manager.get("zoom_max", 1.3)
+        self.engine.smooth_speed = config_manager.get("smooth_speed", 0.15)
+        self.engine.zoom_duration = config_manager.get("zoom_duration", 1.0)
+        self.engine.audio_mode = config_manager.get("audio_mode", AudioRecorder.MODE_NONE)
+        self.engine.system_volume = config_manager.get("system_volume", 1.0)
+        self.engine.mic_volume = config_manager.get("mic_volume", 2.0)
+        self.engine.record_region = config_manager.get("record_region", None)
         
         # 音频模式映射
         self.audio_mode_map = {
@@ -249,6 +278,15 @@ class App(ctk.CTk):
             hover_color="#2980b9"
         )
         self.region_btn.grid(row=1, column=0, pady=(0, 10))
+
+        # Restore region UI if saved
+        if self.engine.record_region:
+            region = self.engine.record_region
+            region_text = locale_manager.get_text("region_label_selected").format(
+                width=region['width'], height=region['height'], left=region['left'], top=region['top']
+            )
+            self.region_label.configure(text=region_text)
+            self.region_btn.configure(text=locale_manager.get_text("btn_reselect_region"))
 
         # 参数设置卡片 (Double Column)
         self.settings_frame = ctk.CTkFrame(self)
@@ -296,7 +334,12 @@ class App(ctk.CTk):
             height=32,
             font=ctk.CTkFont(size=13)
         )
-        self.audio_mode_menu.set(locale_manager.get_text("audio_mode_none"))
+        # Set initial audio mode in UI
+        current_mode_label = [k for k, v in self.audio_mode_map.items() if v == self.engine.audio_mode]
+        if current_mode_label:
+            self.audio_mode_menu.set(current_mode_label[0])
+        else:
+            self.audio_mode_menu.set(locale_manager.get_text("audio_mode_none"))
         self.audio_mode_menu.grid(row=1, column=1, padx=20, pady=(0, 10))
         
         # 系统音量控制
@@ -358,29 +401,35 @@ class App(ctk.CTk):
 
     def change_zoom(self, value):
         self.engine.zoom_max = round(value, 2)
+        config_manager.set("zoom_max", self.engine.zoom_max)
         self.zoom_label.configure(text=locale_manager.get_text("label_zoom").format(self.engine.zoom_max))
 
     def change_smooth(self, value):
         self.engine.smooth_speed = round(value, 2)
+        config_manager.set("smooth_speed", self.engine.smooth_speed)
         self.smooth_label.configure(text=locale_manager.get_text("label_smooth").format(self.engine.smooth_speed))
 
     def change_duration(self, value):
         self.engine.zoom_duration = round(value, 2)
+        config_manager.set("zoom_duration", self.engine.zoom_duration)
         self.duration_label.configure(text=locale_manager.get_text("label_duration").format(self.engine.zoom_duration))
     
     def change_audio_mode(self, choice):
         """更改音频录制模式"""
         self.engine.audio_mode = self.audio_mode_map[choice]
+        config_manager.set("audio_mode", self.engine.audio_mode)
         print(locale_manager.get_text("log_audio_mode_set").format(choice, self.engine.audio_mode))
     
     def change_system_volume(self, value):
         """更改系统音量增益"""
         self.engine.system_volume = round(value, 2)
+        config_manager.set("system_volume", self.engine.system_volume)
         self.system_volume_label.configure(text=locale_manager.get_text("label_system_volume").format(self.engine.system_volume))
     
     def change_mic_volume(self, value):
         """更改麦克风音量增益"""
         self.engine.mic_volume = round(value, 2)
+        config_manager.set("mic_volume", self.engine.mic_volume)
         self.mic_volume_label.configure(text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume))
     
     def select_region(self):
@@ -397,6 +446,7 @@ class App(ctk.CTk):
             return
             
         locale_manager.set_language(lang_code)
+        config_manager.set("language", lang_code)
         
         # Refresh UI
         self.header.configure(text=locale_manager.get_text("app_title"))
@@ -456,6 +506,7 @@ class App(ctk.CTk):
         
         if region:
             self.engine.record_region = region
+            config_manager.set("record_region", region)
             region_text = locale_manager.get_text("region_label_selected").format(
                 width=region['width'], height=region['height'], left=region['left'], top=region['top']
             )
@@ -477,6 +528,7 @@ class App(ctk.CTk):
         else:
             # 停止录制
             self.engine.is_running = False
+            self.engine.is_paused = False
             self.status_label.configure(text=locale_manager.get_text("status_saving"), text_color="#f1c40f")
             self.btn_main.configure(state="disabled")
             
@@ -489,6 +541,46 @@ class App(ctk.CTk):
         else:
             self.btn_main.configure(state="normal", text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150")
             self.status_label.configure(text=locale_manager.get_text("status_saved").format(self.engine.output_file), text_color="#2ecc71")
+
+    def on_f1_shortcut(self):
+        """Ctrl+F1: 开始/暂停/继续"""
+        if not self.engine.is_running:
+            self.toggle_action()  # 开始
+        else:
+            if self.engine.is_paused:
+                self.resume_recording()
+            else:
+                self.pause_recording()
+
+    def on_f2_shortcut(self):
+        """Ctrl+F2: 停止并保存"""
+        if self.engine.is_running:
+            self.toggle_action()  # 停止
+
+    def pause_recording(self):
+        """暂停录制"""
+        print("Pausing recording...")
+        self.engine.is_paused = True
+        if self.engine.audio_recorder:
+            self.engine.audio_recorder.pause()
+        self.status_label.configure(text="Recording Paused", text_color="#e67e22")
+        self.btn_main.configure(text="Resume", fg_color="#e67e22", hover_color="#d35400")
+
+    def resume_recording(self):
+        """恢复录制"""
+        print("Resuming recording...")
+        self.engine.is_paused = False
+        if self.engine.audio_recorder:
+            self.engine.audio_recorder.resume()
+        self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
+        self.btn_main.configure(text=locale_manager.get_text("btn_stop"), fg_color="#e74c3c", hover_color="#c0392b")
+
+    def destroy(self):
+        """Cleanup on close"""
+        if self.hotkey_listener:
+            self.hotkey_listener.stop()
+        super().destroy()
+
 
 if __name__ == "__main__":
     app = App()

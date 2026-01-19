@@ -28,7 +28,7 @@
     "log_merging": "Merging video and audio...",
     "log_merge_fail": "Merge failed",
     "log_audio_mode_set": "Audio mode set to: {} ({})",
-    "region_select_hint": "Drag to select region | ESC to cancel",
+    "region_select_hint": "Drag to select region | Click the screen and press ESC to cancel",
     "region_size_text": "{} x {}",
     "region_too_small": "Region too small! Select at least 50x50 pixels",
     "log_audio_sync_time": "Audio sync time set: {}",

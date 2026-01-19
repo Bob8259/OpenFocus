@@ -60,6 +60,10 @@ class AudioRecorder:
         self.system_audio_data = []
         self.mic_audio_data = []
         self.data_lock = Lock()
+        self.paused = False
+        self.pause_start_timestamp = 0
+
+
         
         # 录制线程
         self.system_thread = None
@@ -77,6 +81,22 @@ class AudioRecorder:
         self.start_time = time.time()
         print(locale_manager.get_text("log_audio_sync_time").format(self.start_time))
 
+    def pause(self):
+        """暂停录制"""
+        self.paused = True
+        self.pause_start_timestamp = time.time()
+
+    def resume(self):
+        """恢复录制"""
+        if self.paused and self.start_time is not None and self.pause_start_timestamp > 0:
+            pause_duration = time.time() - self.pause_start_timestamp
+            self.start_time += pause_duration
+            print(f"Resuming audio: adjusted start_time by {pause_duration:.2f}s")
+            
+        self.paused = False
+        self.pause_start_timestamp = 0
+
+
     def start_recording(self, output_file):
         """
         启动音频录制
@@ -89,6 +109,8 @@ class AudioRecorder:
             
         self.output_file = output_file
         self.is_recording = True
+        self.paused = False
+        self.pause_start_timestamp = 0
         self.start_time = None
         
         try:
@@ -233,8 +255,10 @@ class AudioRecorder:
                             self.system_audio_data.append(silence)
                             total_bytes_read += missing_bytes
                             
-                        self.system_audio_data.append(data)
-                        total_bytes_read += len(data)
+                        if not self.paused:
+                            self.system_audio_data.append(data)
+                            total_bytes_read += len(data)
+
                         
                 except Exception as e:
                     print(locale_manager.get_text("log_read_system_audio_error").format(e))
@@ -269,7 +293,7 @@ class AudioRecorder:
                 print(locale_manager.get_text("log_get_device_info_warning").format(e))
             
             def callback(indata, frames, time_info, status):
-                if self.start_time is None:
+                if self.start_time is None or self.paused:
                     return
                     
                 if status:
