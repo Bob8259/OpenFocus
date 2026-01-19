@@ -10,6 +10,7 @@ import pyautogui
 import customtkinter as ctk
 from audio_recorder import AudioRecorder
 from video_audio_merger import VideoAudioMerger
+from region_selector import RegionSelector
 
 # 解决 Windows DPI 缩放导致的界面模糊和报错
 try:
@@ -38,6 +39,9 @@ class RecordEngine:
         self.audio_mode = AudioRecorder.MODE_NONE  # 音频模式
         self.audio_recorder = None
         self.audio_file = ""
+        
+        # 录制区域参数
+        self.record_region = None  # None 表示全屏，否则为 {'left': x, 'top': y, 'width': w, 'height': h}
 
         # 内部状态
         self.current_zoom = 1.0
@@ -115,8 +119,21 @@ class RecordEngine:
         listener.start()
 
         with mss() as sct:
-            monitor = sct.monitors[1]
-            w, h = monitor["width"], monitor["height"]
+            # 确定录制区域
+            if self.record_region:
+                # 使用自定义区域
+                monitor = {
+                    'left': self.record_region['left'],
+                    'top': self.record_region['top'],
+                    'width': self.record_region['width'],
+                    'height': self.record_region['height']
+                }
+                w, h = self.record_region['width'], self.record_region['height']
+            else:
+                # 使用全屏
+                monitor = sct.monitors[1]
+                w, h = monitor["width"], monitor["height"]
+            
             self.curr_center = [w // 2, h // 2]
             
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -179,7 +196,7 @@ class App(ctk.CTk):
         super().__init__()
 
         self.title("AI Smooth Focus Recorder")
-        self.geometry("420x580")  # 增加高度以容纳音频选项
+        self.geometry("420x650")  # 增加高度以容纳区域选择按钮
         self.engine = RecordEngine()
         
         # 音频模式映射
@@ -196,10 +213,33 @@ class App(ctk.CTk):
         # 头部标题
         self.header = ctk.CTkLabel(self, text="AI 智能录屏系统", font=ctk.CTkFont(size=22, weight="bold"))
         self.header.grid(row=0, column=0, padx=20, pady=(30, 20))
+        
+        # 区域选择按钮
+        self.region_frame = ctk.CTkFrame(self)
+        self.region_frame.grid(row=1, column=0, padx=30, pady=(0, 10), sticky="ew")
+        self.region_frame.grid_columnconfigure(0, weight=1)
+        
+        self.region_label = ctk.CTkLabel(
+            self.region_frame,
+            text="录制区域: 全屏",
+            font=ctk.CTkFont(size=13)
+        )
+        self.region_label.grid(row=0, column=0, pady=(10, 5))
+        
+        self.region_btn = ctk.CTkButton(
+            self.region_frame,
+            text="选择录制区域",
+            command=self.select_region,
+            width=180,
+            height=32,
+            fg_color="#3498db",
+            hover_color="#2980b9"
+        )
+        self.region_btn.grid(row=1, column=0, pady=(0, 10))
 
         # 参数设置卡片
         self.settings_frame = ctk.CTkFrame(self)
-        self.settings_frame.grid(row=1, column=0, padx=30, pady=10, sticky="nsew")
+        self.settings_frame.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
         self.settings_frame.grid_columnconfigure(0, weight=1)
 
         # 缩放倍数
@@ -241,13 +281,13 @@ class App(ctk.CTk):
 
         # 状态指示
         self.status_label = ctk.CTkLabel(self, text="Ready to Record", text_color="#7f8c8d")
-        self.status_label.grid(row=2, column=0, pady=20)
+        self.status_label.grid(row=3, column=0, pady=20)
 
         # 控制按钮
         self.btn_main = ctk.CTkButton(self, text="START RECORDING", fg_color="#27ae60", hover_color="#219150",
                                       height=50, font=ctk.CTkFont(size=15, weight="bold"),
                                       command=self.toggle_action)
-        self.btn_main.grid(row=3, column=0, padx=40, pady=(0, 30), sticky="ew")
+        self.btn_main.grid(row=4, column=0, padx=40, pady=(0, 30), sticky="ew")
 
     def change_zoom(self, value):
         self.engine.zoom_max = round(value, 2)
@@ -265,6 +305,31 @@ class App(ctk.CTk):
         """更改音频录制模式"""
         self.engine.audio_mode = self.audio_mode_map[choice]
         print(f"音频模式已设置为: {choice} ({self.engine.audio_mode})")
+    
+    def select_region(self):
+        """选择录制区域"""
+        # 最小化主窗口
+        self.iconify()
+        
+        # 等待窗口最小化完成
+        self.after(200, self._show_region_selector)
+    
+    def _show_region_selector(self):
+        """显示区域选择器"""
+        selector = RegionSelector()
+        region = selector.select_region()
+        
+        # 恢复主窗口
+        self.deiconify()
+        
+        if region:
+            self.engine.record_region = region
+            region_text = f"录制区域: {region['width']}x{region['height']} @ ({region['left']}, {region['top']})"
+            self.region_label.configure(text=region_text)
+            self.region_btn.configure(text="重新选择区域")
+            print(f"已设置录制区域: {region}")
+        else:
+            print("未选择区域，将使用当前设置")
 
     def toggle_action(self):
         if not self.engine.is_running:
