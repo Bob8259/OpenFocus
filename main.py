@@ -203,12 +203,13 @@ class RecordEngine:
                 else:
                     print(locale_manager.get_text("log_merge_fail"))
 
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title(locale_manager.get_text("window_title"))
-        self.geometry("420x780")  # 增加高度以容纳音量控制
+        self.geometry("700x560")  # Wider window, shorter height
         self.engine = RecordEngine()
         
         # 音频模式映射
@@ -224,7 +225,7 @@ class App(ctk.CTk):
 
         # 头部标题
         self.header = ctk.CTkLabel(self, text=locale_manager.get_text("app_title"), font=ctk.CTkFont(size=22, weight="bold"))
-        self.header.grid(row=0, column=0, padx=20, pady=(30, 20))
+        self.header.grid(row=0, column=0, padx=20, pady=(20, 15))
         
         # 区域选择按钮
         self.region_frame = ctk.CTkFrame(self)
@@ -249,11 +250,16 @@ class App(ctk.CTk):
         )
         self.region_btn.grid(row=1, column=0, pady=(0, 10))
 
-        # 参数设置卡片
+        # 参数设置卡片 (Double Column)
         self.settings_frame = ctk.CTkFrame(self)
         self.settings_frame.grid(row=2, column=0, padx=30, pady=10, sticky="nsew")
+        
+        # Configure columns for settings frame
         self.settings_frame.grid_columnconfigure(0, weight=1)
+        self.settings_frame.grid_columnconfigure(1, weight=1)
 
+        # --- LEFT COLUMN (Video Settings) ---
+        
         # 缩放倍数
         self.zoom_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_zoom").format(self.engine.zoom_max))
         self.zoom_label.grid(row=0, column=0, pady=(15, 0))
@@ -274,11 +280,13 @@ class App(ctk.CTk):
         self.duration_slider = ctk.CTkSlider(self.settings_frame, from_=0.3, to=3.0, command=self.change_duration)
         self.duration_slider.set(self.engine.zoom_duration)
         self.duration_slider.grid(row=5, column=0, padx=20, pady=10)
+
+        # --- RIGHT COLUMN (Audio & Other Settings) ---
         
         # 音频录制模式
         self.audio_mode_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_audio_mode"),
                                              font=ctk.CTkFont(size=13, weight="bold"))
-        self.audio_mode_label.grid(row=6, column=0, pady=(15, 5))
+        self.audio_mode_label.grid(row=0, column=1, pady=(15, 5))
         
         self.audio_mode_menu = ctk.CTkOptionMenu(
             self.settings_frame,
@@ -289,7 +297,7 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=13)
         )
         self.audio_mode_menu.set(locale_manager.get_text("audio_mode_none"))
-        self.audio_mode_menu.grid(row=7, column=0, padx=20, pady=(0, 10))
+        self.audio_mode_menu.grid(row=1, column=1, padx=20, pady=(0, 10))
         
         # 系统音量控制
         self.system_volume_label = ctk.CTkLabel(
@@ -297,7 +305,7 @@ class App(ctk.CTk):
             text=locale_manager.get_text("label_system_volume").format(self.engine.system_volume),
             font=ctk.CTkFont(size=12)
         )
-        self.system_volume_label.grid(row=8, column=0, pady=(10, 0))
+        self.system_volume_label.grid(row=2, column=1, pady=(10, 0))
         self.system_volume_slider = ctk.CTkSlider(
             self.settings_frame,
             from_=0.0,
@@ -305,7 +313,7 @@ class App(ctk.CTk):
             command=self.change_system_volume
         )
         self.system_volume_slider.set(self.engine.system_volume)
-        self.system_volume_slider.grid(row=9, column=0, padx=20, pady=(5, 10))
+        self.system_volume_slider.grid(row=3, column=1, padx=20, pady=(5, 10))
         
         # 麦克风音量控制
         self.mic_volume_label = ctk.CTkLabel(
@@ -313,7 +321,7 @@ class App(ctk.CTk):
             text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume),
             font=ctk.CTkFont(size=12)
         )
-        self.mic_volume_label.grid(row=10, column=0, pady=(5, 0))
+        self.mic_volume_label.grid(row=4, column=1, pady=(5, 0))
         self.mic_volume_slider = ctk.CTkSlider(
             self.settings_frame,
             from_=0.0,
@@ -321,11 +329,11 @@ class App(ctk.CTk):
             command=self.change_mic_volume
         )
         self.mic_volume_slider.set(self.engine.mic_volume)
-        self.mic_volume_slider.grid(row=11, column=0, padx=20, pady=(5, 15))
+        self.mic_volume_slider.grid(row=5, column=1, padx=20, pady=(5, 15))
         
         # Language Selector
         self.language_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_language"), font=ctk.CTkFont(size=13, weight="bold"))
-        self.language_label.grid(row=12, column=0, pady=(15, 5))
+        self.language_label.grid(row=6, column=0, columnspan=2, pady=(15, 5))  # Centered at bottom or keep in right column? Let's center it at bottom of frame
         
         self.language_menu = ctk.CTkOptionMenu(
             self.settings_frame,
@@ -336,11 +344,11 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=13)
         )
         self.language_menu.set("English" if locale_manager.current_locale == "en" else "简体中文")
-        self.language_menu.grid(row=13, column=0, padx=20, pady=(0, 20))
+        self.language_menu.grid(row=7, column=0, columnspan=2, padx=20, pady=(0, 20))
 
         # 状态指示
         self.status_label = ctk.CTkLabel(self, text=locale_manager.get_text("status_ready"), text_color="#7f8c8d")
-        self.status_label.grid(row=3, column=0, pady=20)
+        self.status_label.grid(row=3, column=0, pady=10)
 
         # 控制按钮
         self.btn_main = ctk.CTkButton(self, text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150",

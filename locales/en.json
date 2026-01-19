@@ -1,6 +1,6 @@
 {
-    "app_title": "AI Smart Screen Recorder",
-    "window_title": "AI Smooth Focus Recorder",
+    "app_title": "Open Focus",
+    "window_title": "Open Focus",
     "region_label_fullscreen": "Region: Full Screen",
     "region_label_selected": "Region: {width}x{height} @ ({left}, {top})",
     "btn_select_region": "Select Region",

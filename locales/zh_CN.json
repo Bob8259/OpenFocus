@@ -1,6 +1,6 @@
 {
-    "app_title": "AI 智能录屏系统",
-    "window_title": "AI Smooth Focus Recorder",
+    "app_title": "Open Focus",
+    "window_title": "Open Focus",
     "region_label_fullscreen": "录制区域: 全屏",
     "region_label_selected": "录制区域: {width}x{height} @ ({left}, {top})",
     "btn_select_region": "选择录制区域",
