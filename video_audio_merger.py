@@ -5,6 +5,7 @@
 import os
 import subprocess
 import shutil
+from utils.locale_manager import locale_manager
 
 
 class VideoAudioMerger:
@@ -39,16 +40,16 @@ class VideoAudioMerger:
             bool: 合并是否成功
         """
         if not os.path.exists(video_file):
-            print(f"视频文件不存在: {video_file}")
+            print(locale_manager.get_text("log_video_not_found").format(video_file))
             return False
         
         if not os.path.exists(audio_file):
-            print(f"音频文件不存在: {audio_file}")
+            print(locale_manager.get_text("log_audio_not_found").format(audio_file))
             return False
         
         if not VideoAudioMerger.check_ffmpeg():
-            print("FFmpeg 未安装或不可用")
-            print("请从 https://ffmpeg.org/download.html 下载并安装 FFmpeg")
+            print(locale_manager.get_text("log_ffmpeg_missing"))
+            print(locale_manager.get_text("log_install_ffmpeg"))
             return False
         
         try:
@@ -69,10 +70,10 @@ class VideoAudioMerger:
                 output_file
             ]
             
-            print(f"正在合并音视频文件...")
-            print(f"视频: {video_file}")
-            print(f"音频: {audio_file}")
-            print(f"输出: {output_file}")
+            print(locale_manager.get_text("log_merging"))
+            print(locale_manager.get_text("log_video_file").format(video_file))
+            print(locale_manager.get_text("log_audio_file").format(audio_file))
+            print(locale_manager.get_text("log_output_file").format(output_file))
             
             # 执行 FFmpeg 命令
             result = subprocess.run(
@@ -83,7 +84,7 @@ class VideoAudioMerger:
             )
             
             if result.returncode == 0:
-                print("音视频合并成功")
+                print(locale_manager.get_text("log_merge_success"))
                 
                 # 清理临时文件
                 if cleanup:
@@ -91,14 +92,14 @@ class VideoAudioMerger:
                 
                 return True
             else:
-                print(f"FFmpeg 错误: {result.stderr}")
+                print(locale_manager.get_text("log_ffmpeg_error").format(result.stderr))
                 return False
                 
         except subprocess.TimeoutExpired:
-            print("FFmpeg 执行超时")
+            print(locale_manager.get_text("log_ffmpeg_timeout"))
             return False
         except Exception as e:
-            print(f"合并文件时发生错误: {e}")
+            print(locale_manager.get_text("log_merge_error").format(e))
             return False
     
     @staticmethod
@@ -113,9 +114,9 @@ class VideoAudioMerger:
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                    print(f"已删除临时文件: {file_path}")
+                    print(locale_manager.get_text("log_temp_file_deleted").format(file_path))
             except Exception as e:
-                print(f"删除文件失败 {file_path}: {e}")
+                print(locale_manager.get_text("log_delete_temp_fail").format(file_path, e))
     
     @staticmethod
     def merge_with_fallback(video_file, audio_file, output_file):
@@ -136,7 +137,7 @@ class VideoAudioMerger:
             return True, output_file
         
         # 如果合并失败，使用视频文件作为输出
-        print("音视频合并失败，将只保留视频文件")
+        print(locale_manager.get_text("log_merge_fail_fallback"))
         try:
             if os.path.exists(output_file):
                 os.remove(output_file)
@@ -148,5 +149,5 @@ class VideoAudioMerger:
             
             return True, output_file
         except Exception as e:
-            print(f"文件处理错误: {e}")
+            print(locale_manager.get_text("log_file_process_error").format(e))
             return False, video_file

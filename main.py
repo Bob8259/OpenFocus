@@ -11,6 +11,7 @@ import customtkinter as ctk
 from audio_recorder import AudioRecorder
 from video_audio_merger import VideoAudioMerger
 from region_selector import RegionSelector
+from utils.locale_manager import locale_manager
 
 # 解决 Windows DPI 缩放导致的界面模糊和报错
 try:
@@ -119,7 +120,7 @@ class RecordEngine:
             )
             audio_started = self.audio_recorder.start_recording(self.audio_file)
             if not audio_started:
-                print("音频录制启动失败，将以无音频模式继续")
+                print(locale_manager.get_text("log_audio_start_fail"))
                 self.audio_mode = AudioRecorder.MODE_NONE
         
         listener = mouse.Listener(on_click=self.on_click)
@@ -189,40 +190,40 @@ class RecordEngine:
             
             # 停止音频录制
             if self.audio_mode != AudioRecorder.MODE_NONE and self.audio_recorder:
-                print("正在停止音频录制...")
+                print(locale_manager.get_text("log_audio_stop"))
                 self.audio_recorder.stop_recording()
                 
                 # 合并音视频
-                print("正在合并音视频文件...")
+                print(locale_manager.get_text("log_merging"))
                 success, final_file = VideoAudioMerger.merge_with_fallback(
                     video_temp, self.audio_file, self.output_file
                 )
                 if success:
                     self.output_file = final_file
                 else:
-                    print("音视频合并失败")
+                    print(locale_manager.get_text("log_merge_fail"))
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("AI Smooth Focus Recorder")
+        self.title(locale_manager.get_text("window_title"))
         self.geometry("420x780")  # 增加高度以容纳音量控制
         self.engine = RecordEngine()
         
         # 音频模式映射
         self.audio_mode_map = {
-            "不录音频": AudioRecorder.MODE_NONE,
-            "仅系统声音": AudioRecorder.MODE_SYSTEM,
-            "仅麦克风": AudioRecorder.MODE_MICROPHONE,
-            "麦克风和系统": AudioRecorder.MODE_BOTH
+            locale_manager.get_text("audio_mode_none"): AudioRecorder.MODE_NONE,
+            locale_manager.get_text("audio_mode_system"): AudioRecorder.MODE_SYSTEM,
+            locale_manager.get_text("audio_mode_mic"): AudioRecorder.MODE_MICROPHONE,
+            locale_manager.get_text("audio_mode_both"): AudioRecorder.MODE_BOTH
         }
 
         # UI 布局
         self.grid_columnconfigure(0, weight=1)
 
         # 头部标题
-        self.header = ctk.CTkLabel(self, text="AI 智能录屏系统", font=ctk.CTkFont(size=22, weight="bold"))
+        self.header = ctk.CTkLabel(self, text=locale_manager.get_text("app_title"), font=ctk.CTkFont(size=22, weight="bold"))
         self.header.grid(row=0, column=0, padx=20, pady=(30, 20))
         
         # 区域选择按钮
@@ -232,14 +233,14 @@ class App(ctk.CTk):
         
         self.region_label = ctk.CTkLabel(
             self.region_frame,
-            text="录制区域: 全屏",
+            text=locale_manager.get_text("region_label_fullscreen"),
             font=ctk.CTkFont(size=13)
         )
         self.region_label.grid(row=0, column=0, pady=(10, 5))
         
         self.region_btn = ctk.CTkButton(
             self.region_frame,
-            text="选择录制区域",
+            text=locale_manager.get_text("btn_select_region"),
             command=self.select_region,
             width=180,
             height=32,
@@ -254,46 +255,46 @@ class App(ctk.CTk):
         self.settings_frame.grid_columnconfigure(0, weight=1)
 
         # 缩放倍数
-        self.zoom_label = ctk.CTkLabel(self.settings_frame, text=f"缩放倍数: {self.engine.zoom_max}x")
+        self.zoom_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_zoom").format(self.engine.zoom_max))
         self.zoom_label.grid(row=0, column=0, pady=(15, 0))
         self.zoom_slider = ctk.CTkSlider(self.settings_frame, from_=1.0, to=2.5, command=self.change_zoom)
         self.zoom_slider.set(self.engine.zoom_max)
         self.zoom_slider.grid(row=1, column=0, padx=20, pady=10)
 
         # 平滑度
-        self.smooth_label = ctk.CTkLabel(self.settings_frame, text=f"平滑速度: {self.engine.smooth_speed}")
+        self.smooth_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_smooth").format(self.engine.smooth_speed))
         self.smooth_label.grid(row=2, column=0, pady=(10, 0))
         self.smooth_slider = ctk.CTkSlider(self.settings_frame, from_=0.05, to=0.5, command=self.change_smooth)
         self.smooth_slider.set(self.engine.smooth_speed)
         self.smooth_slider.grid(row=3, column=0, padx=20, pady=10)
 
         # 缩放持续时间
-        self.duration_label = ctk.CTkLabel(self.settings_frame, text=f"缩放持续时间: {self.engine.zoom_duration}秒")
+        self.duration_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_duration").format(self.engine.zoom_duration))
         self.duration_label.grid(row=4, column=0, pady=(10, 0))
         self.duration_slider = ctk.CTkSlider(self.settings_frame, from_=0.3, to=3.0, command=self.change_duration)
         self.duration_slider.set(self.engine.zoom_duration)
         self.duration_slider.grid(row=5, column=0, padx=20, pady=10)
         
         # 音频录制模式
-        self.audio_mode_label = ctk.CTkLabel(self.settings_frame, text="音频录制模式",
+        self.audio_mode_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_audio_mode"),
                                              font=ctk.CTkFont(size=13, weight="bold"))
         self.audio_mode_label.grid(row=6, column=0, pady=(15, 5))
         
         self.audio_mode_menu = ctk.CTkOptionMenu(
             self.settings_frame,
-            values=["不录音频", "仅系统声音", "仅麦克风", "麦克风和系统"],
+            values=list(self.audio_mode_map.keys()),
             command=self.change_audio_mode,
             width=200,
             height=32,
             font=ctk.CTkFont(size=13)
         )
-        self.audio_mode_menu.set("不录音频")
+        self.audio_mode_menu.set(locale_manager.get_text("audio_mode_none"))
         self.audio_mode_menu.grid(row=7, column=0, padx=20, pady=(0, 10))
         
         # 系统音量控制
         self.system_volume_label = ctk.CTkLabel(
             self.settings_frame,
-            text=f"系统音量: {self.engine.system_volume}x",
+            text=locale_manager.get_text("label_system_volume").format(self.engine.system_volume),
             font=ctk.CTkFont(size=12)
         )
         self.system_volume_label.grid(row=8, column=0, pady=(10, 0))
@@ -309,7 +310,7 @@ class App(ctk.CTk):
         # 麦克风音量控制
         self.mic_volume_label = ctk.CTkLabel(
             self.settings_frame,
-            text=f"麦克风音量: {self.engine.mic_volume}x",
+            text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume),
             font=ctk.CTkFont(size=12)
         )
         self.mic_volume_label.grid(row=10, column=0, pady=(5, 0))
@@ -321,43 +322,58 @@ class App(ctk.CTk):
         )
         self.mic_volume_slider.set(self.engine.mic_volume)
         self.mic_volume_slider.grid(row=11, column=0, padx=20, pady=(5, 15))
+        
+        # Language Selector
+        self.language_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_language"), font=ctk.CTkFont(size=13, weight="bold"))
+        self.language_label.grid(row=12, column=0, pady=(15, 5))
+        
+        self.language_menu = ctk.CTkOptionMenu(
+            self.settings_frame,
+            values=["English", "简体中文"],
+            command=self.change_language,
+            width=200,
+            height=32,
+            font=ctk.CTkFont(size=13)
+        )
+        self.language_menu.set("English" if locale_manager.current_locale == "en" else "简体中文")
+        self.language_menu.grid(row=13, column=0, padx=20, pady=(0, 20))
 
         # 状态指示
-        self.status_label = ctk.CTkLabel(self, text="Ready to Record", text_color="#7f8c8d")
+        self.status_label = ctk.CTkLabel(self, text=locale_manager.get_text("status_ready"), text_color="#7f8c8d")
         self.status_label.grid(row=3, column=0, pady=20)
 
         # 控制按钮
-        self.btn_main = ctk.CTkButton(self, text="START RECORDING", fg_color="#27ae60", hover_color="#219150",
+        self.btn_main = ctk.CTkButton(self, text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150",
                                       height=50, font=ctk.CTkFont(size=15, weight="bold"),
                                       command=self.toggle_action)
         self.btn_main.grid(row=4, column=0, padx=40, pady=(0, 30), sticky="ew")
 
     def change_zoom(self, value):
         self.engine.zoom_max = round(value, 2)
-        self.zoom_label.configure(text=f"缩放倍数: {self.engine.zoom_max}x")
+        self.zoom_label.configure(text=locale_manager.get_text("label_zoom").format(self.engine.zoom_max))
 
     def change_smooth(self, value):
         self.engine.smooth_speed = round(value, 2)
-        self.smooth_label.configure(text=f"平滑速度: {self.engine.smooth_speed}")
+        self.smooth_label.configure(text=locale_manager.get_text("label_smooth").format(self.engine.smooth_speed))
 
     def change_duration(self, value):
         self.engine.zoom_duration = round(value, 2)
-        self.duration_label.configure(text=f"缩放持续时间: {self.engine.zoom_duration}秒")
+        self.duration_label.configure(text=locale_manager.get_text("label_duration").format(self.engine.zoom_duration))
     
     def change_audio_mode(self, choice):
         """更改音频录制模式"""
         self.engine.audio_mode = self.audio_mode_map[choice]
-        print(f"音频模式已设置为: {choice} ({self.engine.audio_mode})")
+        print(locale_manager.get_text("log_audio_mode_set").format(choice, self.engine.audio_mode))
     
     def change_system_volume(self, value):
         """更改系统音量增益"""
         self.engine.system_volume = round(value, 2)
-        self.system_volume_label.configure(text=f"系统音量: {self.engine.system_volume}x")
+        self.system_volume_label.configure(text=locale_manager.get_text("label_system_volume").format(self.engine.system_volume))
     
     def change_mic_volume(self, value):
         """更改麦克风音量增益"""
         self.engine.mic_volume = round(value, 2)
-        self.mic_volume_label.configure(text=f"麦克风音量: {self.engine.mic_volume}x")
+        self.mic_volume_label.configure(text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume))
     
     def select_region(self):
         """选择录制区域"""
@@ -366,6 +382,61 @@ class App(ctk.CTk):
         
         # 等待窗口最小化完成
         self.after(200, self._show_region_selector)
+
+    def change_language(self, choice):
+        lang_code = "en" if choice == "English" else "zh_CN"
+        if lang_code == locale_manager.current_locale:
+            return
+            
+        locale_manager.set_language(lang_code)
+        
+        # Refresh UI
+        self.header.configure(text=locale_manager.get_text("app_title"))
+        self.title(locale_manager.get_text("window_title"))
+        
+        if self.engine.record_region:
+            region_text = locale_manager.get_text("region_label_selected").format(
+                width=self.engine.record_region['width'], 
+                height=self.engine.record_region['height'], 
+                left=self.engine.record_region['left'], 
+                top=self.engine.record_region['top']
+            )
+            self.region_btn.configure(text=locale_manager.get_text("btn_reselect_region"))
+        else:
+            region_text = locale_manager.get_text("region_label_fullscreen")
+            self.region_btn.configure(text=locale_manager.get_text("btn_select_region"))
+        self.region_label.configure(text=region_text)
+        
+        self.zoom_label.configure(text=locale_manager.get_text("label_zoom").format(self.engine.zoom_max))
+        self.smooth_label.configure(text=locale_manager.get_text("label_smooth").format(self.engine.smooth_speed))
+        self.duration_label.configure(text=locale_manager.get_text("label_duration").format(self.engine.zoom_duration))
+        
+        self.audio_mode_label.configure(text=locale_manager.get_text("label_audio_mode"))
+        
+        # Update audio mode map and menu
+        self.audio_mode_map = {
+            locale_manager.get_text("audio_mode_none"): AudioRecorder.MODE_NONE,
+            locale_manager.get_text("audio_mode_system"): AudioRecorder.MODE_SYSTEM,
+            locale_manager.get_text("audio_mode_mic"): AudioRecorder.MODE_MICROPHONE,
+            locale_manager.get_text("audio_mode_both"): AudioRecorder.MODE_BOTH
+        }
+        
+        # Find new label for current mode
+        new_label = [k for k, v in self.audio_mode_map.items() if v == self.engine.audio_mode][0]
+        self.audio_mode_menu.configure(values=list(self.audio_mode_map.keys()))
+        self.audio_mode_menu.set(new_label)
+        
+        self.system_volume_label.configure(text=locale_manager.get_text("label_system_volume").format(self.engine.system_volume))
+        self.mic_volume_label.configure(text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume))
+        
+        if not self.engine.is_running:
+            self.status_label.configure(text=locale_manager.get_text("status_ready"))
+            self.btn_main.configure(text=locale_manager.get_text("btn_start"))
+        else:
+             self.status_label.configure(text=locale_manager.get_text("status_recording"))
+             self.btn_main.configure(text=locale_manager.get_text("btn_stop"))
+
+        self.language_label.configure(text=locale_manager.get_text("label_language"))
     
     def _show_region_selector(self):
         """显示区域选择器"""
@@ -377,18 +448,20 @@ class App(ctk.CTk):
         
         if region:
             self.engine.record_region = region
-            region_text = f"录制区域: {region['width']}x{region['height']} @ ({region['left']}, {region['top']})"
+            region_text = locale_manager.get_text("region_label_selected").format(
+                width=region['width'], height=region['height'], left=region['left'], top=region['top']
+            )
             self.region_label.configure(text=region_text)
-            self.region_btn.configure(text="重新选择区域")
-            print(f"已设置录制区域: {region}")
+            self.region_btn.configure(text=locale_manager.get_text("btn_reselect_region"))
+            print(locale_manager.get_text("log_region_set").format(region))
         else:
-            print("未选择区域，将使用当前设置")
+            print(locale_manager.get_text("log_region_cancel"))
 
     def toggle_action(self):
         if not self.engine.is_running:
             # 开始录制
-            self.status_label.configure(text="● RECORDING...", text_color="#e74c3c")
-            self.btn_main.configure(text="STOP AND SAVE", fg_color="#e74c3c", hover_color="#c0392b")
+            self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
+            self.btn_main.configure(text=locale_manager.get_text("btn_stop"), fg_color="#e74c3c", hover_color="#c0392b")
             
             # 在单独线程启动引擎，防止 UI 挂起
             self.record_thread = Thread(target=self.engine.run)
@@ -396,7 +469,7 @@ class App(ctk.CTk):
         else:
             # 停止录制
             self.engine.is_running = False
-            self.status_label.configure(text="Saving file... please wait", text_color="#f1c40f")
+            self.status_label.configure(text=locale_manager.get_text("status_saving"), text_color="#f1c40f")
             self.btn_main.configure(state="disabled")
             
             # 检查线程结束
@@ -406,8 +479,8 @@ class App(ctk.CTk):
         if self.record_thread.is_alive():
             self.after(500, self.check_thread_done)
         else:
-            self.btn_main.configure(state="normal", text="START RECORDING", fg_color="#27ae60", hover_color="#219150")
-            self.status_label.configure(text=f"Saved: {self.engine.output_file}", text_color="#2ecc71")
+            self.btn_main.configure(state="normal", text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150")
+            self.status_label.configure(text=locale_manager.get_text("status_saved").format(self.engine.output_file), text_color="#2ecc71")
 
 if __name__ == "__main__":
     app = App()

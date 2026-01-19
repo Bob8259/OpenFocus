@@ -5,6 +5,7 @@
 import tkinter as tk
 from PIL import ImageGrab, ImageTk
 import pyautogui
+from utils.locale_manager import locale_manager
 
 
 class RegionSelector:
@@ -48,7 +49,7 @@ class RegionSelector:
         self.canvas.create_text(
             screen_width // 2,
             50,
-            text="拖拽鼠标选择录屏区域 | 按 ESC 取消",
+            text=locale_manager.get_text("region_select_hint"),
             fill='white',
             font=('Arial', 20, 'bold')
         )
@@ -106,7 +107,7 @@ class RegionSelector:
         mid_y = (self.start_y + event.y) / 2
         self.canvas.create_text(
             mid_x, mid_y,
-            text=f"{width} x {height}",
+            text=locale_manager.get_text("region_size_text").format(width, height),
             fill='yellow',
             font=('Arial', 16, 'bold'),
             tags='size_text'
@@ -142,7 +143,7 @@ class RegionSelector:
             self.canvas.create_text(
                 self.root.winfo_screenwidth() // 2,
                 100,
-                text="选择区域太小！请选择至少 50x50 像素的区域",
+                text=locale_manager.get_text("region_too_small"),
                 fill='red',
                 font=('Arial', 16, 'bold'),
                 tags='error_text'

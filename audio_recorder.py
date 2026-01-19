@@ -7,6 +7,7 @@ import wave
 import time
 from threading import Thread, Lock
 import os
+from utils.locale_manager import locale_manager
 
 try:
     import pyaudiowpatch as pyaudio
@@ -74,7 +75,7 @@ class AudioRecorder:
     def set_start_time(self):
         """设置录制开始时间，用于音画同步"""
         self.start_time = time.time()
-        print(f"音频录制同步时间已设置: {self.start_time}")
+        print(locale_manager.get_text("log_audio_sync_time").format(self.start_time))
 
     def start_recording(self, output_file):
         """
@@ -98,7 +99,7 @@ class AudioRecorder:
             elif self.mode == self.MODE_BOTH:
                 return self._start_mixed_recording()
         except Exception as e:
-            print(f"启动音频录制失败: {e}")
+            print(locale_manager.get_text("log_audio_start_error").format(e))
             self.is_recording = False
             return False
             
@@ -121,13 +122,13 @@ class AudioRecorder:
         try:
             return self._save_audio_file()
         except Exception as e:
-            print(f"保存音频文件失败: {e}")
+            print(locale_manager.get_text("log_audio_save_error").format(e))
             return False
     
     def _start_system_recording(self):
         """启动系统音频录制（WASAPI loopback）"""
         if not PYAUDIO_AVAILABLE:
-            print("PyAudio 未安装，无法录制系统音频")
+            print(locale_manager.get_text("log_pyaudio_missing"))
             return False
             
         self.system_thread = Thread(target=self._record_system_audio, daemon=True)
@@ -136,15 +137,16 @@ class AudioRecorder:
     
     def _start_microphone_recording(self):
         """启动麦克风录制"""
+        """启动麦克风录制"""
         if not SOUNDDEVICE_AVAILABLE:
-            print("sounddevice 未安装，无法录制麦克风")
+            print(locale_manager.get_text("log_sounddevice_missing"))
             return False
         
         # 验证是否有可用设备
         devices = AudioRecorder.get_input_devices()
         if not devices:
-            print("错误：未找到可用的音频输入设备")
-            print("运行诊断以获取更多信息...")
+            print(locale_manager.get_text("log_no_input_device"))
+            print(locale_manager.get_text("log_run_diagnosis"))
             AudioRecorder.diagnose_audio_devices()
             return False
             
@@ -155,7 +157,7 @@ class AudioRecorder:
     def _start_mixed_recording(self):
         """启动混合录制（系统+麦克风）"""
         if not PYAUDIO_AVAILABLE or not SOUNDDEVICE_AVAILABLE:
-            print("缺少必要的音频库，无法录制混合音频")
+            print(locale_manager.get_text("log_libs_missing_mixed"))
             return False
             
         self.system_thread = Thread(target=self._record_system_audio, daemon=True)
@@ -193,7 +195,7 @@ class AudioRecorder:
             )
             
             self.system_sample_rate = rate
-            print(f"系统音频录制已启动 (采样率: {rate}Hz, 声道: {channels})")
+            print(locale_manager.get_text("log_system_audio_started").format(rate, channels))
             
             # 计算每字节的时间（用于补齐静音）
             bytes_per_frame = channels * 2  # 16-bit = 2 bytes
@@ -235,16 +237,16 @@ class AudioRecorder:
                         total_bytes_read += len(data)
                         
                 except Exception as e:
-                    print(f"读取系统音频数据错误: {e}")
+                    print(locale_manager.get_text("log_read_system_audio_error").format(e))
                     break
             
             stream.stop_stream()
             stream.close()
             p.terminate()
-            print("系统音频录制已停止")
+            print(locale_manager.get_text("log_system_audio_stopped"))
             
         except Exception as e:
-            print(f"系统音频录制错误: {e}")
+            print(locale_manager.get_text("log_system_audio_record_error").format(e))
             self.is_recording = False
     
     def _record_microphone(self):
@@ -254,24 +256,24 @@ class AudioRecorder:
             device_index = AudioRecorder.select_best_input_device()
             
             if device_index is None:
-                print("错误：未找到可用的音频输入设备")
-                print("提示：请检查麦克风是否正确连接并授予应用程序麦克风权限")
+                print(locale_manager.get_text("log_no_input_device"))
+                print(locale_manager.get_text("log_check_mic_permission"))
                 self.is_recording = False
                 return
             
             # 获取设备信息
             try:
                 device_info = sd.query_devices(device_index)
-                print(f"使用音频设备: {device_info['name']} (索引: {device_index})")
+                print(locale_manager.get_text("log_using_device").format(device_info['name'], device_index))
             except Exception as e:
-                print(f"警告：无法获取设备信息: {e}")
+                print(locale_manager.get_text("log_get_device_info_warning").format(e))
             
             def callback(indata, frames, time_info, status):
                 if self.start_time is None:
                     return
                     
                 if status:
-                    print(f"麦克风录制状态: {status}")
+                    print(locale_manager.get_text("log_mic_status").format(status))
                 with self.data_lock:
                     self.mic_audio_data.append(indata.copy())
             
@@ -283,15 +285,15 @@ class AudioRecorder:
                 callback=callback,
                 dtype='int16'
             ):
-                print(f"麦克风录制已启动 (采样率: {self.sample_rate}Hz)")
+                print(locale_manager.get_text("log_mic_started").format(self.sample_rate))
                 while self.is_recording:
                     sd.sleep(100)
             
-            print("麦克风录制已停止")
+            print(locale_manager.get_text("log_mic_stopped"))
             
         except Exception as e:
-            print(f"麦克风录制错误: {e}")
-            print("提示：请检查麦克风是否正确连接并授予应用程序麦克风权限")
+            print(locale_manager.get_text("log_mic_record_error").format(e))
+            print(locale_manager.get_text("log_check_mic_permission"))
             self.is_recording = False
     
     def _save_audio_file(self):
@@ -311,7 +313,7 @@ class AudioRecorder:
                 return False
             
             if audio_data is None or len(audio_data) == 0:
-                print("没有音频数据可保存")
+                print(locale_manager.get_text("log_no_audio_data"))
                 return False
             
             # 保存为 WAV 文件
@@ -321,11 +323,11 @@ class AudioRecorder:
                 wf.setframerate(self.sample_rate)
                 wf.writeframes(audio_data)
             
-            print(f"音频文件已保存: {self.output_file}")
+            print(locale_manager.get_text("log_audio_saved").format(self.output_file))
             return True
             
         except Exception as e:
-            print(f"保存音频文件错误: {e}")
+            print(locale_manager.get_text("log_audio_save_error").format(e))
             return False
     
     def _process_system_audio(self):
@@ -474,7 +476,7 @@ class AudioRecorder:
                         'sample_rate': device['default_samplerate']
                     })
         except Exception as e:
-            print(f"查询音频设备失败: {e}")
+            print(locale_manager.get_text("log_query_device_fail").format(e))
         
         return devices
     
@@ -497,21 +499,21 @@ class AudioRecorder:
         for device in devices:
             name_lower = device['name'].lower()
             if 'microphone' in name_lower or '麦克风' in name_lower or 'mic' in name_lower:
-                print(f"找到麦克风设备: {device['name']}")
+                print(locale_manager.get_text("log_found_mic").format(device['name']))
                 return device['index']
         
         # 尝试获取默认设备
         try:
             default_device = sd.query_devices(kind='input')
             if default_device['max_input_channels'] > 0:
-                print(f"使用默认输入设备: {default_device['name']}")
+                print(locale_manager.get_text("log_using_default_device").format(default_device['name']))
                 return default_device['index']
         except Exception as e:
-            print(f"无法获取默认输入设备: {e}")
+            print(locale_manager.get_text("log_get_default_device_fail").format(e))
         
         # 返回第一个可用设备
         if devices:
-            print(f"使用第一个可用设备: {devices[0]['name']}")
+            print(locale_manager.get_text("log_using_first_device").format(devices[0]['name']))
             return devices[0]['index']
         
         return None
