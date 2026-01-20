@@ -226,6 +226,10 @@ class FFmpegRecordEngine:
         self.is_running = False
 
     def cleanup(self):
+        # 1. Immediately stop audio capture so we don't record extra seconds while waiting for FFmpeg
+        if self.audio_recorder:
+            self.audio_recorder.stop_capture()
+
         if self.mouse_listener:
             self.mouse_listener.stop()
             
@@ -250,6 +254,7 @@ class FFmpegRecordEngine:
                 if os.name == 'nt' and self.ffmpeg_process.poll() is None:
                      os.system(f"taskkill /F /PID {self.ffmpeg_process.pid} >nul 2>&1")
         
+        # 2. Now that FFmpeg is done, we can finish saving the audio file
         if self.audio_recorder:
             self.audio_recorder.stop_recording()
             

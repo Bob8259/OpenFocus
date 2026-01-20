@@ -127,11 +127,16 @@ class AudioRecorder:
             
         return True
     
+    def stop_capture(self):
+        """停止音频录制（不等待线程结束，仅设置停止标志）"""
+        self.is_recording = False
+
     def stop_recording(self):
         """停止音频录制并保存文件"""
-        if self.mode == self.MODE_NONE or not self.is_recording:
+        if self.mode == self.MODE_NONE:
             return True
             
+        # 确保标志位已设置
         self.is_recording = False
         
         # 等待录制线程结束
@@ -516,10 +521,19 @@ class AudioRecorder:
             return None
         
         # 优先级策略：
-        # 1. 查找名称包含 "麦克风" 或 "Microphone" 的设备
-        # 2. 使用系统默认输入设备
-        # 3. 使用第一个可用的输入设备
+        # 1. 查找名称包含 "耳机", "Headphone", "Headset" 的设备
+        # 2. 查找名称包含 "麦克风" 或 "Microphone" 的设备
+        # 3. 使用系统默认输入设备
+        # 4. 使用第一个可用的输入设备
         
+        # 优先查找耳机设备
+        for device in devices:
+            name_lower = device['name'].lower()
+            if any(keyword in name_lower for keyword in ['耳机', 'headphone', 'headset']):
+                print(locale_manager.get_text("log_found_mic").format(device['name']))
+                return device['index']
+        
+        # 其次查找麦克风设备
         for device in devices:
             name_lower = device['name'].lower()
             if 'microphone' in name_lower or '麦克风' in name_lower or 'mic' in name_lower:
