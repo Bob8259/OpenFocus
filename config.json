@@ -2,9 +2,15 @@
     "zoom_max": 1.3,
     "smooth_speed": 0.1,
     "zoom_duration": 2.0,
-    "audio_mode": "both",
+    "audio_mode": "microphone",
     "system_volume": 1.0,
     "mic_volume": 2.0,
     "language": "zh_CN",
-    "record_region": null
+    "record_region": {
+        "left": 0,
+        "top": 0,
+        "width": 2559,
+        "height": 1379
+    },
+    "save_path": "E:/测试录屏"
 }

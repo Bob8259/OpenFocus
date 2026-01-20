@@ -75,5 +75,8 @@
     "log_delete_temp_fail": "Failed to delete file {}: {}",
     "log_merge_fail_fallback": "Merge failed, keeping video only",
     "log_file_process_error": "File processing error: {}",
-    "label_language": "Language / 语言"
+    "label_language": "Language / 语言",
+    "label_save_path": "Save Path",
+    "btn_browse": "Browse",
+    "log_save_path_set": "Save path set to: {}"
 }

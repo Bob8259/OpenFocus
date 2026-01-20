@@ -13,6 +13,7 @@ from mss import mss
 from pynput import mouse, keyboard
 import pyautogui
 import customtkinter as ctk
+from tkinter import filedialog
 from audio_recorder import AudioRecorder
 from video_audio_merger import VideoAudioMerger
 from region_selector import RegionSelector
@@ -44,6 +45,7 @@ class RecordEngine:
         self.zoom_duration = 1.0  # 缩放持续时间（秒）
         self.fps = 30.0
         self.output_file = ""
+        self.save_path = ""
         
         # 音频录制参数
         self.audio_mode = AudioRecorder.MODE_NONE  # 音频模式
@@ -112,13 +114,17 @@ class RecordEngine:
         timestamp = int(time.time())
         
         # 根据音频模式决定文件名
+        filename = f"Record_{timestamp}.mp4"
+        if self.save_path and os.path.exists(self.save_path):
+            self.output_file = os.path.join(self.save_path, filename)
+        else:
+            self.output_file = filename
+
         if self.audio_mode == AudioRecorder.MODE_NONE:
-            self.output_file = f"Record_{timestamp}.mp4"
             video_temp = self.output_file
         else:
-            video_temp = f"Record_{timestamp}_video.mp4"
-            self.audio_file = f"Record_{timestamp}_audio.wav"
-            self.output_file = f"Record_{timestamp}.mp4"
+            video_temp = self.output_file.replace(".mp4", "_video.mp4")
+            self.audio_file = self.output_file.replace(".mp4", "_audio.wav")
         
         # 启动音频录制
         if self.audio_mode != AudioRecorder.MODE_NONE:
@@ -299,6 +305,7 @@ class App(ctk.CTk):
         self.engine.system_volume = config_manager.get("system_volume", 1.0)
         self.engine.mic_volume = config_manager.get("mic_volume", 2.0)
         self.engine.record_region = config_manager.get("record_region", None)
+        self.engine.save_path = config_manager.get("save_path", "")
         
         # 音频模式映射
         self.audio_mode_map = {
@@ -446,7 +453,29 @@ class App(ctk.CTk):
             font=ctk.CTkFont(size=13)
         )
         self.language_menu.set("English" if locale_manager.current_locale == "en" else "简体中文")
-        self.language_menu.grid(row=7, column=0, columnspan=2, padx=20, pady=(0, 20))
+        self.language_menu.grid(row=7, column=0, columnspan=2, padx=20, pady=(0, 10))
+
+        # Save Path Selector
+        self.save_path_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_save_path"), font=ctk.CTkFont(size=13, weight="bold"))
+        self.save_path_label.grid(row=8, column=0, columnspan=2, pady=(10, 5))
+
+        self.path_frame = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
+        self.path_frame.grid(row=9, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
+        self.path_frame.grid_columnconfigure(0, weight=1)
+
+        self.path_entry = ctk.CTkEntry(self.path_frame, height=32)
+        self.path_entry.insert(0, self.engine.save_path if self.engine.save_path else os.getcwd())
+        self.path_entry.configure(state="readonly")
+        self.path_entry.grid(row=0, column=0, padx=(0, 10), sticky="ew")
+
+        self.path_btn = ctk.CTkButton(
+            self.path_frame,
+            text=locale_manager.get_text("btn_browse"),
+            command=self.select_save_path,
+            width=80,
+            height=32
+        )
+        self.path_btn.grid(row=0, column=1)
 
         # 状态指示
         self.status_label = ctk.CTkLabel(self, text=locale_manager.get_text("status_ready"), text_color="#7f8c8d")
@@ -514,6 +543,18 @@ class App(ctk.CTk):
         config_manager.set("mic_volume", self.engine.mic_volume)
         self.mic_volume_label.configure(text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume))
     
+    def select_save_path(self):
+        """选择保存路径"""
+        path = filedialog.askdirectory()
+        if path:
+            self.engine.save_path = path
+            config_manager.set("save_path", path)
+            self.path_entry.configure(state="normal")
+            self.path_entry.delete(0, "end")
+            self.path_entry.insert(0, path)
+            self.path_entry.configure(state="readonly")
+            print(locale_manager.get_text("log_save_path_set").format(path))
+
     def select_region(self):
         """选择录制区域"""
         # 最小化主窗口
@@ -582,6 +623,8 @@ class App(ctk.CTk):
             self.btn_main.configure(text=locale_manager.get_text("btn_stop"))
 
         self.language_label.configure(text=locale_manager.get_text("label_language"))
+        self.save_path_label.configure(text=locale_manager.get_text("label_save_path"))
+        self.path_btn.configure(text=locale_manager.get_text("btn_browse"))
     
     def _show_region_selector(self):
         """显示区域选择器"""

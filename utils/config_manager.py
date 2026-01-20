@@ -17,7 +17,8 @@ class ConfigManager:
         "system_volume": 1.0,
         "mic_volume": 2.0,
         "language": "zh_CN",
-        "record_region": None
+        "record_region": None,
+        "save_path": ""
     }
 
     def __new__(cls):

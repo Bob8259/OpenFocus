@@ -75,5 +75,8 @@
     "log_delete_temp_fail": "删除文件失败 {}: {}",
     "log_merge_fail_fallback": "音视频合并失败，将只保留视频文件",
     "log_file_process_error": "文件处理错误: {}",
-    "label_language": "语言 / Language"
+    "label_language": "语言 / Language",
+    "label_save_path": "保存路径",
+    "btn_browse": "浏览",
+    "log_save_path_set": "保存路径已设置为: {}"
 }
