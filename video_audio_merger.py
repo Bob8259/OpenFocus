@@ -6,6 +6,7 @@ import os
 import subprocess
 import shutil
 from utils.locale_manager import locale_manager
+from utils.path_utils import get_ffmpeg_path
 
 
 class VideoAudioMerger:
@@ -15,8 +16,9 @@ class VideoAudioMerger:
     def check_ffmpeg():
         """检查 FFmpeg 是否可用"""
         try:
+            ffmpeg_path = get_ffmpeg_path()
             result = subprocess.run(
-                ['ffmpeg', '-version'],
+                [ffmpeg_path, '-version'],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -59,8 +61,9 @@ class VideoAudioMerger:
             # -c:a aac: 使用 AAC 编码音频
             # -strict experimental: 允许实验性编码器
             # -y: 覆盖输出文件
+            ffmpeg_path = get_ffmpeg_path()
             command = [
-                'ffmpeg',
+                ffmpeg_path,
                 '-i', video_file,
                 '-i', audio_file,
                 '-c:v', 'copy',

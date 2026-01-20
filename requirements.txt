@@ -1,13 +1,9 @@
-# AI 智能录屏系统依赖库
-
-# 现有依赖
 opencv-python>=4.8.0
 numpy>=1.24.0
 mss>=9.0.0
 pynput>=1.7.6
 pyautogui>=0.9.54
 customtkinter>=5.2.0
-
-# 新增音频录制依赖
 pyaudiowpatch>=0.2.12.5  # Windows 系统音频捕获（WASAPI loopback）
 sounddevice>=0.4.6       # 麦克风录制
+Pillow>=10.0.0           # 图像处理（用于区域选择器）

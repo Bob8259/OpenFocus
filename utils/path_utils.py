@@ -17,6 +17,12 @@ def get_resource_path(relative_path):
     base_path = get_base_path()
     return os.path.join(base_path, relative_path)
 
+def get_ffmpeg_path():
+    """ Get absolute path to the bundled ffmpeg executable """
+    base_path = get_base_path()
+    ffmpeg_exe = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    return os.path.join(base_path, 'ffmpeg', 'bin', ffmpeg_exe)
+
 def get_config_path(filename):
     """ 
     Get absolute path to mutable config files.

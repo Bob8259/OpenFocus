@@ -1,3 +1,8 @@
+# Copyright 2026 Azikaban/Bob8259
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 import sys
 import os
 import cv2

@@ -2,7 +2,7 @@
     "zoom_max": 1.3,
     "smooth_speed": 0.1,
     "zoom_duration": 2.0,
-    "audio_mode": "none",
+    "audio_mode": "system",
     "system_volume": 1.0,
     "mic_volume": 2.0,
     "language": "zh_CN",

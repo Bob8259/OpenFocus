@@ -1,0 +1,7 @@
+### Critical Rules:
+Do not test the python code. I will test them by myself.
+The 'Read' tool shows code after one layer of decoding. 'StrReplace' requires arguments to be double-encoded. 
+Follow this mapping strictly:
+1. ACTUAL NEWLINE: If you see a physical line break in 'Read', use 4 backslashes ("\\\\n") in 'StrReplace'.
+2. LITERAL "\\n": If you see 4 backslashes ("\\n") in 'Read', you MUST use 8 backslashes ("\\\\\\\\n") in 'StrReplace'.
+3. Always DOUBLE the number of backslashes you see in the 'Read' output when writing the 'StrReplace' arguments. Using 8 backslashes with an 'n' in the JSON is interpreted as a backslash followed by 'n'. Meanwhile, 4 backslashes with an 'n' in the JSON represents a newline character.

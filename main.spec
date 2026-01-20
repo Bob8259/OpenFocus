@@ -7,7 +7,7 @@ block_cipher = None
 
 # Collect customtkinter data/binaries/hiddenimports
 # customtkinter needs its theme files and json configs
-datas = [('locales', 'locales')]
+datas = [('locales', 'locales'), ('ffmpeg/bin', 'ffmpeg/bin')]
 binaries = []
 hiddenimports = []
 
