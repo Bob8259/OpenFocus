@@ -1,6 +1,6 @@
 # OpenFocus
 
-[English](README.md) | 简体中文
+[English](https://github.com/Bob8259/OpenFocus) | 简体中文
 
 ---
 
@@ -29,7 +29,7 @@
 - 本应用仅适用于 **Windows**，建议使用 **Windows 11**。
 
 ### 直接下载
-- 您可以直接从 [Releases](PLACEHOLDER_LINK) 下载可执行文件。
+- 您可以直接从 [Releases](https://github.com/Bob8259/OpenFocus/releases) 下载可执行文件。
 
 ### 使用指南
 

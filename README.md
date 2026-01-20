@@ -1,6 +1,6 @@
 # OpenFocus
 
-English | [简体中文](README_zh.md)
+English | [简体中文](https://github.com/Bob8259/OpenFocus/blob/main/README_zh.md)
 
 ---
 
@@ -29,7 +29,7 @@ This system is an intelligent screen recording tool that supports click-to-zoom 
 - This application is only available for **Windows**, preferably **Windows 11**.
 
 ### Direct Download
-- You can directly download the executable from the [Releases](PLACEHOLDER_LINK).
+- You can directly download the executable from the [Releases](https://github.com/Bob8259/OpenFocus/releases).
 
 ### Usage Guide
 
