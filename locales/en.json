@@ -82,5 +82,9 @@
     "label_video_quality": "Video Quality",
     "quality_low": "Low (Smallest)",
     "quality_medium": "Medium (Standard)",
-    "quality_high": "High (Best)"
+    "quality_high": "High (Best)",
+    "label_record_mode": "Recording Mode",
+    "mode_standard": "Standard (Real-time)",
+    "mode_high_perf": "High Perf (Post-process)",
+    "log_processing": "Post-processing video... (This may take a while)"
 }

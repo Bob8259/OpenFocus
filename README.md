@@ -56,8 +56,8 @@ If you want to run from source or customize the code:
 
 #### 1. Create Conda Environment
 ```bash
-conda create -n OpenFoucs python=3.10
-conda activate OpenFoucs
+conda create -n OpenFocus python=3.10
+conda activate OpenFocus
 ```
 
 #### 2. Install Python Dependencies
@@ -94,12 +94,16 @@ pyinstaller main.spec
 
 ### Core Logic
 
-The system follows a straightforward workflow: it records video and audio streams separately and then merges them into a single output using FFmpeg.
+OpenFocus utilizes a high-performance, multi-stage pipeline designed for efficiency and visual quality:
 
-### Limitations
-**This project is not implemented in C/C++; therefore, it is intended primarily for personal use and may not be suitable for performance-critical or production environments.**
+1.  **High-Speed Capture**: Uses a recording engine for low-overhead screen capture.
+2.  **Synchronized Logging**: Real-time logging of mouse movements, clicks, and window events.
+3.  **Intelligent Post-Processing**:
+    *   Dynamic zoom-to-click effects.
+    *   Smooth camera tracking and stabilization.
+    *   Virtual high-fidelity cursor rendering.
+4.  **Automatic Assembly**: Seamlessly merges high-quality video with synchronized system and microphone audio.
 
-This project may contains bugs, especially for "Microphone & System" Mode.
 
 ### Tech Stack
 

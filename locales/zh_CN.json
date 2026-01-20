@@ -82,5 +82,9 @@
     "label_video_quality": "视频质量",
     "quality_low": "低 (文件最小)",
     "quality_medium": "中 (标准)",
-    "quality_high": "高 (最佳质量)"
+    "quality_high": "高 (最佳质量)",
+    "label_record_mode": "录制模式",
+    "mode_standard": "标准模式 (实时处理)",
+    "mode_high_perf": "高性能模式 (后期处理)",
+    "log_processing": "正在进行后期处理... (这可能需要一些时间)"
 }

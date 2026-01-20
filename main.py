@@ -12,7 +12,8 @@ from audio_recorder import AudioRecorder
 from region_selector import RegionSelector
 from utils.locale_manager import locale_manager
 from utils.config_manager import config_manager
-from record_engine import RecordEngine
+# from record_engine import RecordEngine # Deprecated
+from ffmpeg_record_engine import FFmpegRecordEngine
 from overlay_icon import OverlayIcon
 
 # 解决 Windows DPI 缩放导致的界面模糊和报错
@@ -44,7 +45,7 @@ class App(ctk.CTk):
 
         self.title(locale_manager.get_text("window_title"))
         self.geometry("700x850")
-        self.engine = RecordEngine()
+        self.engine = FFmpegRecordEngine()
         self.is_starting = False
         
         # Apply config to engine
@@ -233,12 +234,14 @@ class App(ctk.CTk):
             self.quality_menu.set(locale_manager.get_text("quality_medium"))
         self.quality_menu.grid(row=9, column=0, columnspan=2, padx=20, pady=(0, 10))
 
+
+
         # Save Path Selector
         self.save_path_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_save_path"), font=ctk.CTkFont(size=13, weight="bold"))
-        self.save_path_label.grid(row=10, column=0, columnspan=2, pady=(10, 5))
+        self.save_path_label.grid(row=12, column=0, columnspan=2, pady=(10, 5))
 
         self.path_frame = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
-        self.path_frame.grid(row=11, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
+        self.path_frame.grid(row=13, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
         self.path_frame.grid_columnconfigure(0, weight=1)
 
         self.path_entry = ctk.CTkEntry(self.path_frame, height=32)
@@ -325,6 +328,8 @@ class App(ctk.CTk):
         self.engine.video_quality = self.quality_map[choice]
         config_manager.set("video_quality", self.engine.video_quality)
         print(f"Video quality set to: {choice} ({self.engine.video_quality})")
+
+
 
     def select_save_path(self):
         """选择保存路径"""
@@ -417,6 +422,8 @@ class App(ctk.CTk):
         new_quality_label = [k for k, v in self.quality_map.items() if v == self.engine.video_quality][0]
         self.quality_menu.set(new_quality_label)
 
+
+
         self.save_path_label.configure(text=locale_manager.get_text("label_save_path"))
         self.path_btn.configure(text=locale_manager.get_text("btn_browse"))
     
@@ -478,7 +485,8 @@ class App(ctk.CTk):
 
     def check_thread_done(self):
         if self.record_thread.is_alive():
-            self.after(500, self.check_thread_done)
+             self.status_label.configure(text=locale_manager.get_text("log_processing"))
+             self.after(500, self.check_thread_done)
         else:
             self.btn_main.grid(row=0, column=0, columnspan=2, padx=0, sticky="ew")
             self.btn_main.configure(state="normal", text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150")
