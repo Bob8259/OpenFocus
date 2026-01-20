@@ -78,5 +78,9 @@
     "label_language": "Language / 语言",
     "label_save_path": "Save Path",
     "btn_browse": "Browse",
-    "log_save_path_set": "Save path set to: {}"
+    "log_save_path_set": "Save path set to: {}",
+    "label_video_quality": "Video Quality",
+    "quality_low": "Low (Smallest)",
+    "quality_medium": "Medium (Standard)",
+    "quality_high": "High (Best)"
 }

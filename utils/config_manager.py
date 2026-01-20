@@ -18,7 +18,8 @@ class ConfigManager:
         "mic_volume": 2.0,
         "language": "zh_CN",
         "record_region": None,
-        "save_path": ""
+        "save_path": "",
+        "video_quality": "medium"
     }
 
     def __new__(cls):

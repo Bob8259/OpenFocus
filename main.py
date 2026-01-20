@@ -43,7 +43,7 @@ class App(ctk.CTk):
 
 
         self.title(locale_manager.get_text("window_title"))
-        self.geometry("700x750")
+        self.geometry("700x850")
         self.engine = RecordEngine()
         self.is_starting = False
         
@@ -56,6 +56,7 @@ class App(ctk.CTk):
         self.engine.mic_volume = config_manager.get("mic_volume", 2.0)
         self.engine.record_region = config_manager.get("record_region", None)
         self.engine.save_path = config_manager.get("save_path", "")
+        self.engine.video_quality = config_manager.get("video_quality", "medium")
         
         # 音频模式映射
         self.audio_mode_map = {
@@ -63,6 +64,13 @@ class App(ctk.CTk):
             locale_manager.get_text("audio_mode_system"): AudioRecorder.MODE_SYSTEM,
             locale_manager.get_text("audio_mode_mic"): AudioRecorder.MODE_MICROPHONE,
             locale_manager.get_text("audio_mode_both"): AudioRecorder.MODE_BOTH
+        }
+        
+        # 视频质量映射
+        self.quality_map = {
+            locale_manager.get_text("quality_low"): "low",
+            locale_manager.get_text("quality_medium"): "medium",
+            locale_manager.get_text("quality_high"): "high"
         }
 
         # UI 布局
@@ -205,12 +213,32 @@ class App(ctk.CTk):
         self.language_menu.set("English" if locale_manager.current_locale == "en" else "简体中文")
         self.language_menu.grid(row=7, column=0, columnspan=2, padx=20, pady=(0, 10))
 
+        # Video Quality Selector
+        self.quality_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_video_quality"), font=ctk.CTkFont(size=13, weight="bold"))
+        self.quality_label.grid(row=8, column=0, columnspan=2, pady=(10, 5))
+        
+        self.quality_menu = ctk.CTkOptionMenu(
+            self.settings_frame,
+            values=list(self.quality_map.keys()),
+            command=self.change_quality,
+            width=200,
+            height=32,
+            font=ctk.CTkFont(size=13)
+        )
+        # Set initial quality in UI
+        current_quality_label = [k for k, v in self.quality_map.items() if v == self.engine.video_quality]
+        if current_quality_label:
+            self.quality_menu.set(current_quality_label[0])
+        else:
+            self.quality_menu.set(locale_manager.get_text("quality_medium"))
+        self.quality_menu.grid(row=9, column=0, columnspan=2, padx=20, pady=(0, 10))
+
         # Save Path Selector
         self.save_path_label = ctk.CTkLabel(self.settings_frame, text=locale_manager.get_text("label_save_path"), font=ctk.CTkFont(size=13, weight="bold"))
-        self.save_path_label.grid(row=8, column=0, columnspan=2, pady=(10, 5))
+        self.save_path_label.grid(row=10, column=0, columnspan=2, pady=(10, 5))
 
         self.path_frame = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
-        self.path_frame.grid(row=9, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
+        self.path_frame.grid(row=11, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
         self.path_frame.grid_columnconfigure(0, weight=1)
 
         self.path_entry = ctk.CTkEntry(self.path_frame, height=32)
@@ -292,7 +320,12 @@ class App(ctk.CTk):
         self.engine.mic_volume = round(value, 2)
         config_manager.set("mic_volume", self.engine.mic_volume)
         self.mic_volume_label.configure(text=locale_manager.get_text("label_mic_volume").format(self.engine.mic_volume))
-    
+    def change_quality(self, choice):
+        """更改视频质量"""
+        self.engine.video_quality = self.quality_map[choice]
+        config_manager.set("video_quality", self.engine.video_quality)
+        print(f"Video quality set to: {choice} ({self.engine.video_quality})")
+
     def select_save_path(self):
         """选择保存路径"""
         path = filedialog.askdirectory()
@@ -373,6 +406,17 @@ class App(ctk.CTk):
             self.btn_main.configure(text=locale_manager.get_text("btn_stop"))
 
         self.language_label.configure(text=locale_manager.get_text("label_language"))
+        
+        self.quality_label.configure(text=locale_manager.get_text("label_video_quality"))
+        self.quality_map = {
+            locale_manager.get_text("quality_low"): "low",
+            locale_manager.get_text("quality_medium"): "medium",
+            locale_manager.get_text("quality_high"): "high"
+        }
+        self.quality_menu.configure(values=list(self.quality_map.keys()))
+        new_quality_label = [k for k, v in self.quality_map.items() if v == self.engine.video_quality][0]
+        self.quality_menu.set(new_quality_label)
+
         self.save_path_label.configure(text=locale_manager.get_text("label_save_path"))
         self.path_btn.configure(text=locale_manager.get_text("btn_browse"))
     

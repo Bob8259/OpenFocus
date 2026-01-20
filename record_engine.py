@@ -29,6 +29,7 @@ class RecordEngine:
         self.fps = 30.0
         self.output_file = ""
         self.save_path = ""
+        self.video_quality = "medium"
         
         # 音频录制参数
         self.audio_mode = AudioRecorder.MODE_NONE  # 音频模式
@@ -103,10 +104,10 @@ class RecordEngine:
         else:
             self.output_file = filename
 
-        if self.audio_mode == AudioRecorder.MODE_NONE:
-            video_temp = self.output_file
-        else:
-            video_temp = self.output_file.replace(".mp4", "_video.mp4")
+        # 始终使用临时视频文件，以便最后通过 FFmpeg 压缩
+        video_temp = self.output_file.replace(".mp4", "_video.mp4")
+        
+        if self.audio_mode != AudioRecorder.MODE_NONE:
             self.audio_file = self.output_file.replace(".mp4", "_audio.wav")
         
         # 启动音频录制
@@ -216,12 +217,20 @@ class RecordEngine:
                 print(locale_manager.get_text("log_audio_stop"))
                 self.audio_recorder.stop_recording()
                 
-                # 合并音视频
+                # 合并音视频并压缩
                 print(locale_manager.get_text("log_merging"))
                 success, final_file = VideoAudioMerger.merge_with_fallback(
-                    video_temp, self.audio_file, self.output_file
+                    video_temp, self.audio_file, self.output_file, quality=self.video_quality
                 )
                 if success:
                     self.output_file = final_file
                 else:
                     print(locale_manager.get_text("log_merge_fail"))
+            else:
+                # 仅压缩视频
+                print(locale_manager.get_text("log_merging")) # 复用合并日志表示处理中
+                success, final_file = VideoAudioMerger.merge_with_fallback(
+                    video_temp, "", self.output_file, quality=self.video_quality
+                )
+                if success:
+                    self.output_file = final_file

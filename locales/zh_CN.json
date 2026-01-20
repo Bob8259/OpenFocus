@@ -78,5 +78,9 @@
     "label_language": "语言 / Language",
     "label_save_path": "保存路径",
     "btn_browse": "浏览",
-    "log_save_path_set": "保存路径已设置为: {}"
+    "log_save_path_set": "保存路径已设置为: {}",
+    "label_video_quality": "视频质量",
+    "quality_low": "低 (文件最小)",
+    "quality_medium": "中 (标准)",
+    "quality_high": "高 (最佳质量)"
 }
