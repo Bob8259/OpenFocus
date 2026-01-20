@@ -217,6 +217,38 @@ class RecordEngine:
                     print(locale_manager.get_text("log_merge_fail"))
 
 
+class OverlayIcon(ctk.CTkToplevel):
+    def __init__(self, master, icon_type="start"):
+        super().__init__(master)
+        self.title("Overlay")
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        
+        # Windows transparency trick: use a color key
+        # We use a color that is unlikely to be used in the icon itself
+        self.attributes("-transparentcolor", "white")
+        self.configure(fg_color="white")
+        
+        size = 120
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width // 2) - (size // 2)
+        y = (screen_height // 2) - (size // 2)
+        self.geometry(f"{size}x{size}+{x}+{y}")
+        
+        self.canvas = ctk.CTkCanvas(self, width=size, height=size, bg="white", highlightthickness=0)
+        self.canvas.pack(expand=True, fill="both")
+        
+        if icon_type == "start":
+            # Green Play Triangle
+            self.canvas.create_polygon([30, 20, 30, 100, 100, 60], fill="#27ae60", outline="#2ecc71", width=2)
+        elif icon_type == "pause":
+            # Orange Pause Bars
+            self.canvas.create_rectangle(35, 25, 55, 95, fill="#e67e22", outline="#d35400", width=2)
+            self.canvas.create_rectangle(65, 25, 85, 95, fill="#e67e22", outline="#d35400", width=2)
+            
+        self.after(1000, self.destroy)
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -236,6 +268,7 @@ class App(ctk.CTk):
         self.title(locale_manager.get_text("window_title"))
         self.geometry("700x750")
         self.engine = RecordEngine()
+        self.is_starting = False
         
         # Apply config to engine
         self.engine.zoom_max = config_manager.get("zoom_max", 1.3)
@@ -398,11 +431,34 @@ class App(ctk.CTk):
         self.status_label = ctk.CTkLabel(self, text=locale_manager.get_text("status_ready"), text_color="#7f8c8d")
         self.status_label.grid(row=3, column=0, pady=10)
 
-        # 控制按钮
-        self.btn_main = ctk.CTkButton(self, text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150",
+        # 控制按钮容器
+        self.control_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.control_frame.grid(row=4, column=0, padx=40, pady=(0, 30), sticky="ew")
+        self.control_frame.grid_columnconfigure(0, weight=1)
+        self.control_frame.grid_columnconfigure(1, weight=1)
+
+        # 主按钮 (开始/停止)
+        self.btn_main = ctk.CTkButton(self.control_frame, text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150",
                                       height=50, font=ctk.CTkFont(size=15, weight="bold"),
                                       command=self.toggle_action)
-        self.btn_main.grid(row=4, column=0, padx=40, pady=(0, 30), sticky="ew")
+        self.btn_main.grid(row=0, column=0, columnspan=2, sticky="ew")
+
+        # 暂停/继续按钮
+        self.btn_pause = ctk.CTkButton(self.control_frame, text=locale_manager.get_text("btn_pause"), fg_color="#e67e22", hover_color="#d35400",
+                                       height=50, font=ctk.CTkFont(size=15, weight="bold"),
+                                       command=self.toggle_pause)
+        self.btn_pause.grid(row=0, column=1, padx=(5, 0), sticky="ew")
+        self.btn_pause.grid_remove() # 初始隐藏
+
+    def toggle_pause(self):
+        """切换暂停/继续状态"""
+        if not self.engine.is_running:
+            return
+            
+        if self.engine.is_paused:
+            self.resume_recording()
+        else:
+            self.pause_recording()
 
     def change_zoom(self, value):
         self.engine.zoom_max = round(value, 2)
@@ -496,8 +552,13 @@ class App(ctk.CTk):
             self.status_label.configure(text=locale_manager.get_text("status_ready"))
             self.btn_main.configure(text=locale_manager.get_text("btn_start"))
         else:
-             self.status_label.configure(text=locale_manager.get_text("status_recording"))
-             self.btn_main.configure(text=locale_manager.get_text("btn_stop"))
+            if self.engine.is_paused:
+                self.status_label.configure(text=locale_manager.get_text("status_paused"))
+                self.btn_pause.configure(text=locale_manager.get_text("btn_resume"))
+            else:
+                self.status_label.configure(text=locale_manager.get_text("status_recording"))
+                self.btn_pause.configure(text=locale_manager.get_text("btn_pause"))
+            self.btn_main.configure(text=locale_manager.get_text("btn_stop"))
 
         self.language_label.configure(text=locale_manager.get_text("label_language"))
     
@@ -521,29 +582,47 @@ class App(ctk.CTk):
         else:
             print(locale_manager.get_text("log_region_cancel"))
 
+    def show_overlay(self, icon_type):
+        OverlayIcon(self, icon_type)
+
     def toggle_action(self):
         if not self.engine.is_running:
+            if self.is_starting:
+                return
             # 开始录制
-            self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
-            self.btn_main.configure(text=locale_manager.get_text("btn_stop"), fg_color="#e74c3c", hover_color="#c0392b")
-            
-            # 在单独线程启动引擎，防止 UI 挂起
-            self.record_thread = Thread(target=self.engine.run)
-            self.record_thread.start()
+            self.is_starting = True
+            self.btn_main.configure(state="disabled")
+            self.show_overlay("start")
+            # 延迟 1 秒后真正开始录制
+            self.after(1000, self._really_start_recording)
         else:
             # 停止录制
             self.engine.is_running = False
             self.engine.is_paused = False
             self.status_label.configure(text=locale_manager.get_text("status_saving"), text_color="#f1c40f")
             self.btn_main.configure(state="disabled")
+            self.btn_pause.grid_remove()
             
             # 检查线程结束
             self.check_thread_done()
+
+    def _really_start_recording(self):
+        self.is_starting = False
+        self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
+        self.btn_main.grid(row=0, column=0, columnspan=1, padx=(0, 5), sticky="ew")
+        self.btn_main.configure(state="normal", text=locale_manager.get_text("btn_stop"), fg_color="#e74c3c", hover_color="#c0392b")
+        self.btn_pause.grid() # 显示暂停按钮
+        self.btn_pause.configure(text=locale_manager.get_text("btn_pause"), fg_color="#e67e22", hover_color="#d35400")
+        
+        # 在单独线程启动引擎，防止 UI 挂起
+        self.record_thread = Thread(target=self.engine.run)
+        self.record_thread.start()
 
     def check_thread_done(self):
         if self.record_thread.is_alive():
             self.after(500, self.check_thread_done)
         else:
+            self.btn_main.grid(row=0, column=0, columnspan=2, padx=0, sticky="ew")
             self.btn_main.configure(state="normal", text=locale_manager.get_text("btn_start"), fg_color="#27ae60", hover_color="#219150")
             self.status_label.configure(text=locale_manager.get_text("status_saved").format(self.engine.output_file), text_color="#2ecc71")
 
@@ -566,19 +645,29 @@ class App(ctk.CTk):
         """暂停录制"""
         print("Pausing recording...")
         self.engine.is_paused = True
+        self.show_overlay("pause")
         if self.engine.audio_recorder:
             self.engine.audio_recorder.pause()
-        self.status_label.configure(text="Recording Paused", text_color="#e67e22")
-        self.btn_main.configure(text="Resume", fg_color="#e67e22", hover_color="#d35400")
+        self.status_label.configure(text=locale_manager.get_text("status_paused"), text_color="#e67e22")
+        self.btn_pause.configure(text=locale_manager.get_text("btn_resume"), fg_color="#27ae60", hover_color="#219150")
 
     def resume_recording(self):
         """恢复录制"""
+        if self.is_starting:
+            return
         print("Resuming recording...")
+        self.is_starting = True
+        self.btn_pause.configure(state="disabled")
+        self.show_overlay("start")
+        self.after(1000, self._really_resume_recording)
+
+    def _really_resume_recording(self):
+        self.is_starting = False
         self.engine.is_paused = False
         if self.engine.audio_recorder:
             self.engine.audio_recorder.resume()
         self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
-        self.btn_main.configure(text=locale_manager.get_text("btn_stop"), fg_color="#e74c3c", hover_color="#c0392b")
+        self.btn_pause.configure(state="normal", text=locale_manager.get_text("btn_pause"), fg_color="#e67e22", hover_color="#d35400")
 
     def destroy(self):
         """Cleanup on close"""
