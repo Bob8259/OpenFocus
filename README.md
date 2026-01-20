@@ -82,6 +82,12 @@ choco install ffmpeg
 python main.py
 ```
 
+#### Build EXE (Opetional)
+```bash
+pip install pyinstaller
+pyinstaller main.spec
+```
+
 ## Technical Architecture
 
 ### Core Logic

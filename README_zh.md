@@ -81,6 +81,11 @@ choco install ffmpeg
 ```bash
 python main.py
 ```
+#### 构建EXE
+```bash
+pip install pyinstaller
+pyinstaller main.spec
+```
 
 ## 技术架构
 
