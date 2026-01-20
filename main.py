@@ -35,8 +35,9 @@ class RecordEngine:
     def __init__(self):
         self.is_running = False
         self.is_paused = False
+        self.pause_start_time = 0
+        self.total_paused_duration = 0
 
-        
         # 默认参数（可被 UI 实时修改）
         self.zoom_max = 1.3
         self.smooth_speed = 0.15
@@ -157,15 +158,29 @@ class RecordEngine:
             out = cv2.VideoWriter(video_temp, fourcc, self.fps, (w, h))
 
             # 设置音频录制开始时间（与视频录制同步）
+            start_time = time.time()
             if self.audio_mode != AudioRecorder.MODE_NONE and self.audio_recorder:
                 self.audio_recorder.set_start_time()
 
+            self.total_paused_duration = 0
+            frames_written = 0
+
             while self.is_running:
                 if self.is_paused:
+                    if self.pause_start_time == 0:
+                        self.pause_start_time = time.time()
                     time.sleep(0.1)
                     continue
+                
+                if self.pause_start_time > 0:
+                    self.total_paused_duration += (time.time() - self.pause_start_time)
+                    self.pause_start_time = 0
 
                 loop_start = time.time()
+                
+                # 计算当前应该有的总帧数
+                elapsed = loop_start - start_time - self.total_paused_duration
+                expected_frames = int(elapsed * self.fps)
                 
                 # 抓取屏幕
                 img = np.array(sct.grab(monitor))
@@ -190,11 +205,17 @@ class RecordEngine:
                 processed = self.apply_zoom(frame, self.curr_center, self.current_zoom, (w, h))
                 processed = self.draw_effects(processed, self.current_zoom, self.curr_center, w, h)
 
+                # 写入当前帧，并根据需要补帧以维持 FPS
                 out.write(processed)
+                frames_written += 1
+                
+                while frames_written < expected_frames:
+                    out.write(processed)
+                    frames_written += 1
 
                 # 帧率控制
-                elapsed = time.time() - loop_start
-                wait = (1.0 / self.fps) - elapsed
+                elapsed_loop = time.time() - loop_start
+                wait = (1.0 / self.fps) - elapsed_loop
                 if wait > 0:
                     time.sleep(wait)
 

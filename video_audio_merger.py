@@ -57,8 +57,10 @@ class VideoAudioMerger:
         try:
             # 构建 FFmpeg 命令
             # -i: 输入文件
+            # -map 0:v:0 -map 1:a:0: 明确指定视频来自第一个输入，音频来自第二个输入
             # -c:v copy: 复制视频流（不重新编码）
             # -c:a aac: 使用 AAC 编码音频
+            # -shortest: 以最短的流（通常是视频）为准结束输出
             # -strict experimental: 允许实验性编码器
             # -y: 覆盖输出文件
             ffmpeg_path = get_ffmpeg_path()
@@ -66,8 +68,11 @@ class VideoAudioMerger:
                 ffmpeg_path,
                 '-i', video_file,
                 '-i', audio_file,
+                '-map', '0:v:0',
+                '-map', '1:a:0',
                 '-c:v', 'copy',
                 '-c:a', 'aac',
+                '-shortest',
                 '-strict', 'experimental',
                 '-y',
                 output_file

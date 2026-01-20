@@ -88,7 +88,10 @@ python main.py
 
 The system follows a straightforward workflow: it records video and audio streams separately and then merges them into a single output using FFmpeg.
 
+### Limitations
 **This project is not implemented in C/C++; therefore, it is intended primarily for personal use and may not be suitable for performance-critical or production environments.**
+
+This project may contains bugs, especially for "Microphone & System" Mode.
 
 ### Tech Stack
 
