@@ -34,7 +34,29 @@ class PostProcessor:
         
         # Sort just in case
         clicks.sort(key=lambda x: x['time'])
+        clicks.sort(key=lambda x: x['time'])
         moves.sort(key=lambda x: x['time'])
+
+        # Parse Pause Intervals
+        pause_events = [e for e in full_log if e.get('type', '').startswith('pause_')]
+        pause_events.sort(key=lambda x: x['time'])
+        
+        pause_intervals = []
+        current_pause_start = None
+        
+        for e in pause_events:
+            if e['type'] == 'pause_start':
+                current_pause_start = e['time']
+            elif e['type'] == 'pause_end' and current_pause_start is not None:
+                pause_intervals.append((current_pause_start, e['time']))
+                current_pause_start = None
+        
+        if current_pause_start is not None:
+             # Assume pause until end of video
+             pause_intervals.append((current_pause_start, 999999))
+             
+        if pause_intervals:
+            print(f"Detected {len(pause_intervals)} pause intervals: {pause_intervals}")
             
         # Parse Config
         zoom_max = config.get("zoom_max", 1.3)
@@ -91,7 +113,23 @@ class PostProcessor:
             if not ret:
                 break
                 
-            current_time = frame_idx / fps
+            # Use actual video timestamp if available, fallback to frame count
+            timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            if timestamp_ms > 0:
+                 current_time = timestamp_ms / 1000.0
+            else:
+                 current_time = frame_idx / fps
+
+            # Check if current_time is inside any pause interval
+            is_paused_frame = False
+            for start, end in pause_intervals:
+                if start <= current_time <= end:
+                    is_paused_frame = True
+                    break
+            
+            if is_paused_frame:
+                frame_idx += 1
+                continue
             
             # Check for clicks around this time
             # We want to trigger the effect slightly before or exactly at the click?

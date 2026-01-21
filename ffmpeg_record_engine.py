@@ -43,6 +43,8 @@ class FFmpegRecordEngine:
         self.ffmpeg_process = None
         self.mouse_listener = None
         self.log_lock = threading.Lock()
+        self.mouse_log_interval = 0.05  # 20 FPS limiting
+        self.last_mouse_log_time = 0
         
     def on_click(self, x, y, button, pressed):
         if pressed and self.is_running and not self.is_paused and self.start_time is not None:
@@ -66,7 +68,13 @@ class FFmpegRecordEngine:
 
     def on_move(self, x, y):
         if self.is_running and not self.is_paused and self.start_time is not None:
-             with self.log_lock:
+            # Rate limiting: 10 FPS
+            current_real_time = time.time()
+            if current_real_time - self.last_mouse_log_time < self.mouse_log_interval:
+                return
+            self.last_mouse_log_time = current_real_time
+
+            with self.log_lock:
                 timestamp = time.time() - self.start_time
                 
                 # Normalize coordinates if recording a region
@@ -83,8 +91,59 @@ class FFmpegRecordEngine:
                     "type": "move"
                 })
 
+
+    def pause(self):
+        """Pause recording and log event"""
+        if not self.is_running or self.is_paused:
+            return
+        
+        self.is_paused = True
+        if self.start_time:
+            timestamp = time.time() - self.start_time
+            with self.log_lock:
+                self.click_log.append({
+                    "time": timestamp,
+                    "type": "pause_start"
+                })
+        print("Engine paused")
+
+    def resume(self):
+        """Resume recording and log event"""
+        if not self.is_running or not self.is_paused:
+            return
+            
+        if self.start_time:
+            timestamp = time.time() - self.start_time
+            with self.log_lock:
+                self.click_log.append({
+                    "time": timestamp,
+                    "type": "pause_end"
+                })
+        self.is_paused = False
+        print("Engine resumed")
+
+    def reset(self):
+        """重置录制引擎状态，清空所有缓冲区和日志"""
+        with self.log_lock:
+            self.click_log = []
+        self.start_time = None
+        self.is_running = False
+        self.is_paused = False
+        self.output_file = ""
+        self.video_temp = ""
+        self.click_log_file = ""
+        self.audio_file = ""
+        self.ffmpeg_process = None
+        self.ffmpeg_process = None
+        self.mouse_listener = None
+        self.last_mouse_log_time = 0
+        print("FFmpeg engine reset: all buffers and logs cleared")
+
     def run(self):
         """Start the recording process"""
+        # 清空之前的录制数据
+        self.reset()
+        
         self.is_running = True
         self.is_paused = False
         timestamp = int(time.time())
@@ -111,6 +170,9 @@ class FFmpegRecordEngine:
             if not self.audio_recorder.start_recording(self.audio_file):
                 print(locale_manager.get_text("log_audio_start_fail"))
                 self.audio_mode = AudioRecorder.MODE_NONE
+        else:
+            # 如果没有音频录制，确保 audio_recorder 为 None
+            self.audio_recorder = None
 
         # Start mouse listener (monitor both click and move)
         self.mouse_listener = mouse.Listener(on_click=self.on_click, on_move=self.on_move)
@@ -131,13 +193,22 @@ class FFmpegRecordEngine:
                 stdin=subprocess.PIPE, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
-                creationflags=creationflags
+                creationflags=creationflags,
+                universal_newlines=True # Text mode for easier parsing
             )
             
-            # Record start time for sync
-            # Give FFmpeg a moment to initialize
-            time.sleep(0.5) 
-            self.start_time = time.time()
+            # Start a thread to monitor stderr for start signal and prevent blocking
+            self.start_event = threading.Event()
+            self.stderr_thread = threading.Thread(target=self._monitor_stderr)
+            self.stderr_thread.daemon = True
+            self.stderr_thread.start()
+            
+            # Wait for FFmpeg to actually start
+            if self.start_event.wait(timeout=5.0):
+                print("FFmpeg started successfully (synced).")
+            else:
+                 print("Warning: Timed out waiting for FFmpeg start signal. Using fallback timing.")
+                 self.start_time = time.time()
             
             # Record initial mouse position at time 0
             try:
@@ -170,14 +241,8 @@ class FFmpegRecordEngine:
                     break
                 
                 # If paused, we effectively just wait. 
-                # FFmpeg continues recording, but we might mark this period in logs or pause it?
-                # Pausing FFmpeg is tricky (suspend process). 
-                # For high perf mode, maybe we just don't support pause for now 
-                # OR we implement it by sending 'pause' command if supported, 
-                # but gdigrab usually doesn't support interactive commands well.
-                # EASIEST: Just don't log clicks while paused. The video will be continuous.
-                # If user wants to cut the pause, they can do it in post.
-                # But to keep consistent with UI, let's just sleep.
+                # The pause events are logged. PostProcessor will cut these sections.
+                # Video continues recording but will be trimmed later.
                 
                 time.sleep(0.1)
 
@@ -185,6 +250,25 @@ class FFmpegRecordEngine:
             print(f"Error running FFmpeg: {e}")
         finally:
             self.cleanup()
+
+    def _monitor_stderr(self):
+        """Monitor FFmpeg stderr for start signal and consume output"""
+        try:
+            while self.ffmpeg_process and self.ffmpeg_process.poll() is None:
+                line = self.ffmpeg_process.stderr.readline()
+                if not line:
+                    break
+                    
+                # print(f"FFmpeg Log: {line.strip()}") # Optional: debug logging
+                
+                # Check for start signal
+                if not self.start_time:
+                    # Look for "Press [q]" or "frame=" which indicates main loop started
+                    if "Press [q]" in line or "frame=" in line or "fps=" in line:
+                         self.start_time = time.time()
+                         self.start_event.set()
+        except Exception as e:
+            print(f"Error reading stderr: {e}")
 
     def _build_ffmpeg_command(self):
         ffmpeg_path = get_ffmpeg_path()
@@ -237,7 +321,7 @@ class FFmpegRecordEngine:
             # Terminate FFmpeg gracefully to finalize file
             # Send 'q' to stdin
             try:
-                self.ffmpeg_process.stdin.write(b'q')
+                self.ffmpeg_process.stdin.write('q')
                 self.ffmpeg_process.stdin.flush()
                 # Give it more time to finalize (especially for larger files or slower systems)
                 self.ffmpeg_process.wait(timeout=5)

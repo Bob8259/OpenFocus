@@ -66,10 +66,12 @@ class VideoAudioMerger:
             
             # 构建 FFmpeg 命令
             if audio_file and os.path.exists(audio_file):
-                # 合并音视频并压缩
+                # Audio starts ~0.3s after video due to FFmpeg startup delay
+                # Use -itsoffset to shift audio earlier
                 command = [
                     ffmpeg_path,
                     '-i', video_file,
+                    '-itsoffset', '0.5',
                     '-i', audio_file,
                     '-map', '0:v:0',
                     '-map', '1:a:0',
@@ -77,7 +79,6 @@ class VideoAudioMerger:
                     '-crf', crf,
                     '-preset', 'veryfast',
                     '-c:a', 'aac',
-                    '-shortest',
                     '-y',
                     output_file
                 ]

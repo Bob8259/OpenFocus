@@ -97,6 +97,18 @@ class AudioRecorder:
         self.pause_start_timestamp = 0
 
 
+    def reset(self):
+        """重置音频录制器状态，清空缓冲区"""
+        with self.data_lock:
+            self.system_audio_data = []
+            self.mic_audio_data = []
+        self.is_recording = False
+        self.paused = False
+        self.pause_start_timestamp = 0
+        self.start_time = None
+        self.system_sample_rate = None
+        print("Audio recorder reset: buffers cleared")
+
     def start_recording(self, output_file):
         """
         启动音频录制
@@ -106,6 +118,9 @@ class AudioRecorder:
         """
         if self.mode == self.MODE_NONE:
             return True
+        
+        # 清空之前的录制数据
+        self.reset()
             
         self.output_file = output_file
         self.is_recording = True

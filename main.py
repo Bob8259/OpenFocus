@@ -463,7 +463,7 @@ class App(ctk.CTk):
         else:
             # 停止录制
             self.engine.is_running = False
-            self.engine.is_paused = False
+            self.engine.resume() # Ensure we close any open pause interval
             self.status_label.configure(text=locale_manager.get_text("status_saving"), text_color="#f1c40f")
             self.btn_main.configure(state="disabled")
             self.btn_pause.grid_remove()
@@ -510,7 +510,7 @@ class App(ctk.CTk):
     def pause_recording(self):
         """暂停录制"""
         print("Pausing recording...")
-        self.engine.is_paused = True
+        self.engine.pause()
         self.show_overlay("pause")
         if self.engine.audio_recorder:
             self.engine.audio_recorder.pause()
@@ -529,7 +529,7 @@ class App(ctk.CTk):
 
     def _really_resume_recording(self):
         self.is_starting = False
-        self.engine.is_paused = False
+        self.engine.resume()
         if self.engine.audio_recorder:
             self.engine.audio_recorder.resume()
         self.status_label.configure(text=locale_manager.get_text("status_recording"), text_color="#e74c3c")
